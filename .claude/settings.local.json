@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pkill -f \"next dev\")",
+      "Bash(npm run:*)",
+      "Bash(echo \"PID: $!\")",
+      "Read(//private/tmp/**)",
+      "Bash(node -e \"const b=require\\('bcryptjs'\\); b.hash\\('sellix2025',10\\).then\\(h => { console.log\\(h\\); require\\('fs'\\).readFileSync\\('/Users/jdh/Desktop/SellixAI-MVP/.env.local','utf8'\\).split\\('\\\\n'\\).forEach\\(l => { if\\(l.startsWith\\('APP_PASSWORD_HASH'\\)\\) console.log\\('stored:', l\\); }\\); }\\)\")",
+      "Bash(node -e ':*)",
+      "Bash(node -e \"console.log\\(require\\('/Users/jdh/Desktop/SellixAI-MVP/node_modules/tailwindcss/package.json'\\).version\\)\")"
+    ]
+  }
+}
