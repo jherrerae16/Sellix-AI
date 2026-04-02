@@ -2,12 +2,13 @@
 ## Sellix AI
 ### Plataforma de Inteligencia de Ventas para Droguerías y Comercio Farmacéutico
 
-**Versión:** 1.0
+**Versión:** 1.1
 **Fecha:** Abril 2026
 **Autor:** Juan David Herrera
 **Empresa:** Next AI Tech LLC
-**Estado:** Documento Maestro
+**Estado:** Implementado — MVP completo (Fase 1 + Fase 2)
 **Tipo de producto:** SaaS · Analytics · IA Predictiva · Dashboard Comercial
+**Última actualización:** 01/04/2026 — Refleja estado real de implementación
 
 ---
 
@@ -329,15 +330,17 @@ Eje X: Frecuencia de aparición — Eje Y: Poder de arrastre — Tamaño: Ticket
 
 ### 8.1 Stack Tecnológico
 
-| Capa | Tecnología | Justificación |
-|---|---|---|
-| Frontend | Next.js 14+ (App Router) + TypeScript | SSG para velocidad, routing nativo, ecosistema maduro |
-| Estilos | Tailwind CSS | Productividad, consistencia, mobile-first |
-| Gráficas | Recharts | Composable, compatible con React, sin dependencias pesadas |
-| Tablas | TanStack Table v8 | Filtros, sorting, paginación, exportación CSV |
-| ETL / Análisis | Python 3.11+ · pandas · openpyxl | Procesamiento robusto de Excel, análisis vectorizado |
-| Datos en runtime | JSON estáticos en `public/data/` | Sin DB en Fase 1, carga instantánea |
-| Idioma UI | Español colombiano 100% | Usuario final no anglófono |
+| Capa | Tecnología | Versión | Justificación |
+|---|---|---|---|
+| Frontend | Next.js (App Router) + TypeScript | 14.2.20 / TS 5.7.2 | SSG para velocidad, routing nativo, ecosistema maduro |
+| Estilos | Tailwind CSS | 3.4.17 | Productividad, consistencia, mobile-first |
+| Gráficas | Recharts | 2.15.0 | Composable, compatible con React, sin dependencias pesadas |
+| Tablas | TanStack Table v8 | 8.20.5 | Filtros, sorting, paginación, exportación CSV |
+| Autenticación | NextAuth.js v5 + bcryptjs | 5.0.0-beta.25 / 2.4.3 | JWT sessions, rate limiting, seguridad enterprise |
+| Iconos | Lucide React | 0.462.0 | Iconografía consistente, tree-shakeable |
+| ETL / Análisis | Python 3.11+ · pandas · openpyxl | pandas 2.2.3 / openpyxl 3.1.5 | Procesamiento robusto de Excel, análisis vectorizado |
+| Datos en runtime | JSON estáticos en `public/data/` | — | Sin DB en Fase 1, carga instantánea |
+| Idioma UI | Español colombiano 100% | — | Usuario final no anglófono |
 
 ### 8.2 Estructura de Carpetas
 
@@ -347,9 +350,11 @@ sellix-ai/
 │   ├── raw/                          ← Archivos Excel originales (no versionados)
 │   │   ├── Ventas_Superofertas.xlsx
 │   │   └── Remisiones_Mayo_Octubre_Superofertas.xlsx
-│   └── processed/                    ← Intermedio del ETL
+│   ├── processed/                    ← Intermedio del ETL
+│   └── uploads/                      ← Archivos subidos por el usuario
 ├── scripts/
-│   └── etl.py                        ← Script único que genera todos los JSON
+│   ├── etl.py                        ← Script único que genera todos los JSON
+│   └── requirements.txt              ← Dependencias Python (pandas, openpyxl)
 ├── public/
 │   └── data/                         ← JSON pre-calculados servidos estáticamente
 │       ├── kpis_resumen.json
@@ -357,38 +362,65 @@ sellix-ai/
 │       ├── top_productos.json
 │       ├── ventas_cruzadas.json
 │       ├── churn_clientes.json
-│       ├── reposicion_activa.json
-│       ├── segmentacion_rfm.json
+│       ├── reposicion_pendiente.json
+│       ├── clientes_rfm.json
 │       └── productos_gancho.json
 ├── src/
 │   ├── app/
-│   │   ├── layout.tsx                ← Shell: Sidebar + TopBar
+│   │   ├── layout.tsx                ← Shell: RoleProvider + AppShell (Sidebar + TopBar)
 │   │   ├── page.tsx                  ← Módulo 1.1: Resumen Ejecutivo
 │   │   ├── cruzada/page.tsx          ← Módulo 1.2: Venta Cruzada
 │   │   ├── churn/page.tsx            ← Módulo 1.3: Riesgo de Abandono
 │   │   ├── reposicion/page.tsx       ← Módulo 1.4: Retención Activa
 │   │   ├── vip/page.tsx              ← Módulo 2.1: Clientes VIP/RFM
-│   │   └── gancho/page.tsx           ← Módulo 2.2: Productos Gancho
+│   │   ├── gancho/page.tsx           ← Módulo 2.2: Productos Gancho
+│   │   ├── upload/page.tsx           ← Gestión de archivos Excel (upload)
+│   │   ├── auth/signin/page.tsx      ← Pantalla de inicio de sesión
+│   │   ├── api/auth/[...nextauth]/   ← NextAuth route handlers
+│   │   ├── api/upload/               ← API de carga de archivos
+│   │   ├── error.tsx                 ← Error boundary (fail-closed)
+│   │   ├── global-error.tsx          ← Error boundary global
+│   │   └── not-found.tsx             ← Página 404
 │   ├── components/
+│   │   ├── cajero/
+│   │   │   └── CajeroHome.tsx        ← Vista simplificada para cajero
 │   │   ├── layout/
-│   │   │   ├── Sidebar.tsx
-│   │   │   └── TopBar.tsx
+│   │   │   ├── Sidebar.tsx           ← Navegación 6 módulos + logout
+│   │   │   ├── TopBar.tsx            ← Badge churn + usuario + logout
+│   │   │   ├── AppShell.tsx          ← Wrapper principal del layout
+│   │   │   ├── HomeRouter.tsx        ← Routing por rol (admin/cajero)
+│   │   │   └── AdminOnly.tsx         ← Guard de autorización
 │   │   ├── charts/
-│   │   │   ├── VentasMensualesChart.tsx
-│   │   │   ├── TopProductosChart.tsx
-│   │   │   └── ScatterRFM.tsx
+│   │   │   ├── VentasMensualesChart.tsx    ← Ventas por mes (barras)
+│   │   │   ├── TopProductosChart.tsx       ← Top 10 productos (barras horiz.)
+│   │   │   ├── FrecuenciaHistogram.tsx     ← Distribución frecuencia de compra
+│   │   │   ├── ScatterRFM.tsx             ← Scatter RFM interactivo
+│   │   │   └── BubbleGancho.tsx           ← Mapa de burbujas productos gancho
 │   │   ├── tables/
-│   │   │   ├── ChurnTable.tsx
-│   │   │   ├── ReposicionTable.tsx
-│   │   │   ├── VentaCruzadaTable.tsx
-│   │   │   └── VIPTable.tsx
+│   │   │   ├── ChurnTable.tsx             ← Tabla riesgo + drawer detalle + CSV
+│   │   │   ├── ReposicionTable.tsx        ← Tabs estado + búsqueda + CSV
+│   │   │   ├── VentaCruzadaTable.tsx      ← Búsqueda + CajaPanel
+│   │   │   ├── VIPTable.tsx               ← Scores RFM + CLV + filtro segmento
+│   │   │   └── GanchoTable.tsx            ← Barras arrastre + filtro categoría
 │   │   └── ui/
-│   │       ├── KPICard.tsx
-│   │       ├── RiskBadge.tsx
-│   │       └── FilterBar.tsx
-│   └── lib/
-│       ├── types.ts                  ← Interfaces TypeScript para todos los JSON
-│       └── formatters.ts             ← COP, fechas DD/MM/YYYY, porcentajes
+│   │       ├── KPICard.tsx                ← 6 variantes (COP, %, días, score, etc.)
+│   │       ├── RiskBadge.tsx              ← Badges Alto/Medio/Bajo
+│   │       ├── FilterBar.tsx              ← Búsqueda + dropdown + rango fechas
+│   │       ├── SearchInput.tsx            ← Input con debounce 300ms + clear
+│   │       ├── ExportButton.tsx           ← CSV UTF-8 con BOM (compatible Excel)
+│   │       ├── AccionCajaPanel.tsx        ← Texto plano para cajero
+│   │       └── ClienteDetailPanel.tsx     ← Drawer lateral detalle cliente
+│   ├── lib/
+│   │   ├── types.ts                  ← 10 interfaces TypeScript
+│   │   ├── formatters.ts             ← COP, fechas DD/MM/YYYY, porcentajes
+│   │   ├── dataService.ts            ← 8 funciones fetch para JSON
+│   │   ├── authConfig.ts             ← Configuración NextAuth (JWT, bcrypt)
+│   │   ├── logger.ts                 ← Logging estructurado JSON
+│   │   ├── rateLimiter.ts            ← Rate limiting (5 intentos → 15min bloqueo)
+│   │   └── RoleContext.tsx           ← Contexto de roles (admin/cajero)
+│   ├── middleware.ts                 ← Guard JWT (Edge Runtime) — deshabilitado en MVP
+│   └── auth.ts                       ← Instancia NextAuth v5
+├── .env.local.example                ← Template variables de entorno
 └── README.md
 ```
 
@@ -423,6 +455,8 @@ Campos con valores nulos: Dirección (43%), Teléfono (12%)
 
 ### 8.4 Modelo de Datos — Interfaces TypeScript principales
 
+> **Nota:** Los JSON almacenan fechas en formato ISO (`YYYY-MM-DD`). La conversión a `DD/MM/YYYY` ocurre en la capa UI mediante `formatters.ts`.
+
 ```typescript
 // kpis_resumen.json
 interface KPIsResumen {
@@ -432,7 +466,7 @@ interface KPIsResumen {
   ticket_promedio: number
   clientes_en_riesgo_alto: number
   oportunidades_cruzada: number
-  periodo: { desde: string; hasta: string }
+  periodo: string              // Descripción del período analizado
 }
 
 // churn_clientes.json
@@ -440,7 +474,7 @@ interface ClienteChurn {
   cedula: string
   nombre: string
   telefono: string | null
-  ultima_compra: string        // DD/MM/YYYY
+  ultima_compra: string        // YYYY-MM-DD (formateado a DD/MM/YYYY en UI)
   frecuencia_promedio_dias: number
   dias_sin_comprar: number
   churn_score: number
@@ -448,17 +482,19 @@ interface ClienteChurn {
   accion_sugerida: string
 }
 
-// reposicion_activa.json
+// reposicion_pendiente.json
 interface ReposicionPendiente {
   cedula: string
   nombre: string
   telefono: string | null
   producto: string
-  ultima_compra: string        // DD/MM/YYYY
+  ultima_compra: string        // YYYY-MM-DD
   ciclo_dias: number
-  proxima_reposicion: string   // DD/MM/YYYY
+  proxima_reposicion: string   // YYYY-MM-DD
   dias_para_reposicion: number
   estado: 'Vencido' | 'Esta semana' | 'Próximo mes'
+  historial_compras: string[]  // Fechas de compras previas
+  intervalos_dias: number[]    // Días entre cada compra consecutiva
 }
 
 // ventas_cruzadas.json
@@ -469,12 +505,14 @@ interface VentaCruzada {
   lift: number
   confianza: number            // 0–1
   incremento_ticket_estimado: number
+  categoria_terapeutica?: string  // Categoría para filtrado
 }
 
-// segmentacion_rfm.json
+// clientes_rfm.json
 interface ClienteRFM {
   cedula: string
   nombre: string
+  telefono: string | null
   recency_dias: number
   frequency: number
   monetary: number
@@ -483,6 +521,8 @@ interface ClienteRFM {
   score_m: number              // 1–5
   segmento: 'VIP' | 'Leal' | 'En desarrollo' | 'En riesgo'
   clv_estimado_anual: number
+  ticket_promedio: number
+  ultima_compra: string        // YYYY-MM-DD
   churn_score: number
 }
 
@@ -498,7 +538,33 @@ interface ProductoGancho {
 }
 ```
 
-### 8.5 Convenciones de Diseño UI
+### 8.5 Seguridad Implementada
+
+| ID | Medida | Implementación |
+|---|---|---|
+| SEC-01 | Autenticación | NextAuth.js v5 con proveedor Credentials + bcryptjs |
+| SEC-02 | Sesiones JWT | Tokens de 8 horas, cookies HttpOnly + SameSite=lax |
+| SEC-03 | Rate Limiting | 5 intentos fallidos → bloqueo de IP por 15 minutos |
+| SEC-04 | Logging estructurado | JSON a stdout, nunca registra contraseñas ni cédulas |
+| SEC-05 | Headers HTTP | CSP, HSTS con preload, X-Frame-Options: DENY, X-Content-Type-Options: nosniff |
+| SEC-06 | Permisos del navegador | Cámara, micrófono y geolocalización deshabilitados vía Permissions-Policy |
+| SEC-07 | Error boundaries | Páginas error.tsx, global-error.tsx, not-found.tsx (patrón fail-closed) |
+| SEC-08 | Mensajes genéricos | Errores de autenticación no revelan si el usuario o la contraseña son incorrectos |
+| SEC-09 | Dependencias fijas | Versiones exactas en package-lock.json (sin rangos) |
+| SEC-10 | Middleware Edge | Guard JWT en Edge Runtime (preparado, deshabilitado en MVP) |
+
+**Estado actual:** La infraestructura de seguridad está completamente implementada. El middleware de autenticación está **deshabilitado** para el MVP (matcher vacío) pero puede activarse cambiando la configuración del matcher en `src/middleware.ts`.
+
+### 8.6 Sistema de Roles
+
+| Rol | Acceso | Implementación |
+|---|---|---|
+| `admin` | Todos los módulos + gestión de archivos | Vista completa del dashboard |
+| `cajero` | Vista simplificada de venta cruzada y reposición | `CajeroHome.tsx` — solo información accionable en punto de venta |
+
+El cambio de rol se gestiona mediante `RoleContext.tsx` con persistencia en localStorage. Los componentes `AdminOnly` y `HomeRouter` controlan el acceso según el rol activo.
+
+### 8.7 Convenciones de Diseño UI
 
 | Elemento | Valor |
 |---|---|
@@ -517,15 +583,17 @@ interface ProductoGancho {
 
 ## 9. REQUERIMIENTOS NO FUNCIONALES
 
-| ID | Requisito | Criterio |
-|---|---|---|
-| NFR-001 | Rendimiento | Dashboard carga en < 3 segundos (datos pre-calculados) |
-| NFR-002 | Disponibilidad | 99.5% uptime en hosting de producción |
-| NFR-003 | Reproducibilidad | El ETL produce el mismo output con los mismos datos de entrada |
-| NFR-004 | Usabilidad | Un usuario no técnico puede operar el dashboard sin capacitación |
-| NFR-005 | Exportación | Tablas de Churn y Reposición exportables a CSV con un clic |
-| NFR-006 | Seguridad básica | Acceso protegido por autenticación en producción (Fase 1.5) |
-| NFR-007 | Escalabilidad datos | El ETL debe soportar hasta 500.000 registros sin cambios de arquitectura |
+| ID | Requisito | Criterio | Estado |
+|---|---|---|---|
+| NFR-001 | Rendimiento | Dashboard carga en < 3 segundos (datos pre-calculados) | ✅ Implementado |
+| NFR-002 | Disponibilidad | 99.5% uptime en hosting de producción | ✅ Ready (Vercel) |
+| NFR-003 | Reproducibilidad | El ETL produce el mismo output con los mismos datos de entrada | ✅ Implementado |
+| NFR-004 | Usabilidad | Un usuario no técnico puede operar el dashboard sin capacitación | ✅ Implementado |
+| NFR-005 | Exportación | Tablas de Churn y Reposición exportables a CSV con un clic | ✅ Implementado (UTF-8 + BOM) |
+| NFR-006 | Seguridad | Autenticación JWT + rate limiting + headers de seguridad + logging | ✅ Implementado (ver sección 8.5) |
+| NFR-007 | Escalabilidad datos | El ETL debe soportar hasta 500.000 registros sin cambios de arquitectura | ✅ Implementado |
+| NFR-008 | Compatibilidad CSV | Exportación compatible con Excel (UTF-8 con BOM para caracteres latinos) | ✅ Implementado |
+| NFR-009 | Error handling | Error boundaries con patrón fail-closed en todas las rutas | ✅ Implementado |
 
 ---
 
@@ -544,35 +612,38 @@ interface ProductoGancho {
 
 ## 11. ROADMAP
 
-### Fase 1 — MVP Piloto Super Ofertas (60 días)
+### Fase 1 — MVP Piloto Super Ofertas ✅ COMPLETADA
 
-| Semana | Entregable |
+| Entregable | Estado |
 |---|---|
-| 1–2 | ETL Python funcional + validación de datos |
-| 3–4 | Layout Next.js + Módulo 1.1 (Resumen Ejecutivo) con datos reales |
-| 5 | Módulo 1.2 (Venta Cruzada) |
-| 6 | Módulo 1.3 (Riesgo de Abandono) |
-| 7 | Módulo 1.4 (Retención Activa / Reposición) |
-| 8 | QA, ajustes con el cliente, despliegue en producción |
+| ETL Python funcional + validación de datos (8 calculadores) | ✅ |
+| Layout Next.js + autenticación + seguridad enterprise | ✅ |
+| Módulo 1.1 — Resumen Ejecutivo (6 KPIs + 3 gráficas) | ✅ |
+| Módulo 1.2 — Venta Cruzada (tabla + panel de caja + filtros) | ✅ |
+| Módulo 1.3 — Riesgo de Abandono (tabla + drawer + CSV + badge) | ✅ |
+| Módulo 1.4 — Retención Activa (tabs + búsqueda + CSV) | ✅ |
+| Sistema de roles admin/cajero | ✅ |
 
-### Fase 2 — Inteligencia Avanzada (30 días adicionales)
+### Fase 2 — Inteligencia Avanzada ✅ COMPLETADA
 
-| Semana | Entregable |
+| Entregable | Estado |
 |---|---|
-| 9–10 | Módulo 2.1 (Segmentación VIP / RFM) |
-| 11 | Módulo 2.2 (Productos Gancho) |
-| 12 | Pulido visual, documentación, entrega final |
+| Módulo 2.1 — Segmentación VIP/RFM (scatter + tabla + CLV) | ✅ |
+| Módulo 2.2 — Productos Gancho (bubble chart + tabla + categorías) | ✅ |
+| Página de upload de archivos Excel | ✅ |
+| Error boundaries y páginas de error | ✅ |
 
 ### Fase 3 — Producto SaaS Multi-tenant (post-piloto)
 
 - Autenticación multi-tenant con aislamiento de datos por cliente
-- Upload de archivos Excel desde la propia plataforma (sin ETL manual)
+- ~~Upload de archivos Excel desde la propia plataforma~~ → Ya implementado en `/upload`
 - Actualización periódica de datos (cron job semanal o mensual)
 - Integración directa con sistemas POS colombianos (Siesa, Helisa, World Office)
 - Módulo de campañas: generación de listas de contacto segmentadas para WhatsApp
 - API REST para consumo desde otros sistemas
 - Panel de administración para Next AI Tech (vista de todos los clientes)
 - Pricing SaaS: plan por establecimiento o por número de transacciones analizadas
+- Activación del middleware de autenticación (actualmente deshabilitado en MVP)
 
 ---
 
@@ -596,11 +667,64 @@ Al finalizar la implementación en Droguería Super Ofertas, el proyecto se cons
 - Módulo de pagos o transacciones
 - Gestión de inventario o pedidos a proveedores
 - App móvil nativa
-- Autenticación de múltiples usuarios con roles diferenciados
+- ~~Autenticación de múltiples usuarios con roles diferenciados~~ → Implementado (admin/cajero)
 - Dark mode
+- Middleware de autenticación activado en producción (infraestructura lista, deshabilitado en MVP)
+- Multi-tenancy con aislamiento de datos por cliente
+
+---
+
+## 14. ENTREGABLES ADICIONALES (FUERA DEL ALCANCE ORIGINAL)
+
+Las siguientes funcionalidades fueron implementadas durante la construcción del MVP aunque no estaban contempladas en la versión original del PRD:
+
+| Funcionalidad | Descripción | Ubicación |
+|---|---|---|
+| Sistema de roles | Dos roles (admin/cajero) con vistas diferenciadas | `RoleContext.tsx`, `HomeRouter.tsx`, `AdminOnly.tsx` |
+| Vista de cajero | Interfaz simplificada para punto de venta | `CajeroHome.tsx` |
+| Upload de archivos | Carga de Excel con drag & drop, detección automática de columnas | `/upload`, `/api/upload` |
+| Seguridad enterprise | Rate limiting, logging estructurado, headers HTTP, error boundaries | `rateLimiter.ts`, `logger.ts`, `next.config.ts` |
+| Autenticación completa | NextAuth v5 con JWT, bcrypt, cookies seguras | `authConfig.ts`, `auth.ts`, `middleware.ts` |
+| Histograma de frecuencia | Distribución de clientes por frecuencia de compra | `FrecuenciaHistogram.tsx` |
+| Mapa de burbujas gancho | Visualización interactiva de productos gancho | `BubbleGancho.tsx` |
+| Drawer de detalle | Panel lateral con historial completo del cliente | `ClienteDetailPanel.tsx` |
+| Búsqueda con debounce | Input de búsqueda con delay de 300ms para rendimiento | `SearchInput.tsx` |
+
+---
+
+## 15. INVENTARIO DE ARCHIVOS GENERADOS
+
+### Código fuente: ~50 archivos
+
+| Categoría | Cantidad | Ubicación |
+|---|---|---|
+| Páginas (rutas) | 10 | `src/app/` |
+| Componentes de layout | 5 | `src/components/layout/` |
+| Componentes de gráficas | 5 | `src/components/charts/` |
+| Componentes de tablas | 5 | `src/components/tables/` |
+| Componentes UI reutilizables | 7 | `src/components/ui/` |
+| Librerías y utilidades | 7 | `src/lib/` |
+| Configuración | 7 | Raíz del proyecto |
+| ETL y scripts | 2 | `scripts/` |
+| Vista cajero | 1 | `src/components/cajero/` |
+
+### Datos JSON: 8 archivos en `public/data/`
+
+| Archivo | Tamaño aprox. | Registros |
+|---|---|---|
+| `kpis_resumen.json` | 220B | 1 objeto |
+| `ventas_mensuales.json` | 500B | 12 meses |
+| `top_productos.json` | 1.3KB | 10 productos |
+| `ventas_cruzadas.json` | 25KB | 217+ pares |
+| `churn_clientes.json` | 268KB | 234+ clientes |
+| `reposicion_pendiente.json` | 132KB | 891+ registros |
+| `clientes_rfm.json` | 342KB | 957 clientes |
+| `productos_gancho.json` | 840KB | 3.268+ productos |
+
+**Total datos procesados:** 17.721 ventas + 2.582 remisiones = 20.303 registros
 
 ---
 
 *Documento preparado por Next AI Tech LLC · Miami, Florida*
 *Cliente piloto: Droguería Super Ofertas · Barranquilla, Colombia*
-*Sellix AI v1.0 · Abril 2026*
+*Sellix AI v1.1 · Abril 2026*

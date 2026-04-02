@@ -9,9 +9,9 @@ export function AdminOnly({ children }: { children: ReactNode }) {
   const router = useRouter();
 
   useEffect(() => {
-    if (role === "cajero") router.replace("/");
+    if (role !== "admin") router.replace("/");
   }, [role, router]);
 
-  if (role === "cajero") return null;
+  if (role !== "admin") return null;
   return <>{children}</>;
 }

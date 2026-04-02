@@ -18,6 +18,8 @@
     "react": "18.3.1",
     "react-dom": "18.3.1",
     "recharts": "2.15.0",
+    "resend": "^6.10.0",
+    "twilio": "^5.13.1",
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
@@ -25,6 +27,7 @@
     "@types/node": "20.17.10",
     "@types/react": "18.3.12",
     "@types/react-dom": "18.3.1",
+    "@types/twilio": "^3.19.2",
     "autoprefixer": "10.4.20",
     "eslint": "8.57.1",
     "eslint-config-next": "14.2.20",

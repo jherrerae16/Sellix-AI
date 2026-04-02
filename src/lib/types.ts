@@ -107,3 +107,100 @@ export interface UserSession {
   userName: string;
   expires: string;
 }
+
+// =============================================================
+// Motor de Campañas
+// =============================================================
+
+export type CampaignType = "churn" | "reposicion";
+export type CampaignChannel = "email" | "whatsapp" | "ambos";
+export type CampaignStatus = "pendiente" | "enviado" | "error";
+
+export interface CampaignRecipient {
+  cedula: string;
+  nombre: string;
+  telefono: string | null;
+  // Reposición
+  producto?: string;
+  proxima_reposicion?: string;
+  estado?: string;
+  ciclo_dias?: number;
+  // Churn
+  nivel_riesgo?: string;
+  dias_sin_comprar?: number;
+  accion_sugerida?: string;
+}
+
+export interface CampaignTemplate {
+  id: string;
+  name: string;
+  type: CampaignType;
+  subject: string;
+  body: string;
+}
+
+export interface CampaignSendRequest {
+  type: CampaignType;
+  channel: CampaignChannel;
+  templateId: string;
+  subject: string;
+  body: string;
+  recipients: CampaignRecipient[];
+}
+
+export interface CampaignResult {
+  success: boolean;
+  sent: number;
+  errors: string[];
+}
+
+// =============================================================
+// Atribución de Campañas
+// =============================================================
+
+export interface MessageLog {
+  id: string;
+  timestamp: string;
+  cedula: string;
+  nombre: string;
+  campaign_type: CampaignType;
+  channel: CampaignChannel;
+  template_id: string;
+  producto?: string;
+}
+
+export interface Attribution {
+  message_id: string;
+  cedula: string;
+  nombre: string;
+  campaign_type: CampaignType;
+  fecha_mensaje: string;
+  fecha_compra: string;
+  dias_despues: number;
+  valor_venta: number;
+  producto_comprado: string;
+  match_exacto: boolean;
+}
+
+export interface CommissionSummary {
+  total_mensajes: number;
+  total_contactados: number;
+  total_conversiones: number;
+  tasa_conversion: number;
+  ingresos_atribuidos: number;
+  comision_estimada: number;
+  comision_rate: number;
+  atribuciones: Attribution[];
+  por_tipo: {
+    type: CampaignType;
+    mensajes: number;
+    conversiones: number;
+    ingresos: number;
+  }[];
+  por_canal: {
+    channel: string;
+    mensajes: number;
+    conversiones: number;
+    ingresos: number;
+  }[];
+}

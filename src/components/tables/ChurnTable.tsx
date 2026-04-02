@@ -15,6 +15,7 @@ import {
   flexRender,
   createColumnHelper,
   type SortingState,
+  type RowSelectionState,
 } from "@tanstack/react-table";
 import { ChevronUp, ChevronDown, ChevronsUpDown, Phone } from "lucide-react";
 import type { ClienteChurn } from "@/lib/types";
@@ -26,19 +27,35 @@ import { ClienteDetailPanel } from "@/components/ui/ClienteDetailPanel";
 
 interface ChurnTableProps {
   data: ClienteChurn[];
+  rowSelection?: RowSelectionState;
+  onRowSelectionChange?: (selection: RowSelectionState) => void;
+  enableSelection?: boolean;
 }
 
 const col = createColumnHelper<ClienteChurn>();
 
 const PAGE_SIZE = 20;
 
-export function ChurnTable({ data }: ChurnTableProps) {
+export function ChurnTable({
+  data,
+  rowSelection: controlledSelection,
+  onRowSelectionChange,
+  enableSelection = false,
+}: ChurnTableProps) {
   const [sorting, setSorting] = useState<SortingState>([
     { id: "churn_score", desc: true },
   ]);
   const [riesgoFilter, setRiesgoFilter] = useState("");
   const [nombreFilter, setNombreFilter] = useState("");
   const [selectedCliente, setSelectedCliente] = useState<ClienteChurn | null>(null);
+  const [localSelection, setLocalSelection] = useState<RowSelectionState>({});
+
+  const rowSelection = controlledSelection ?? localSelection;
+  const setRowSelection = (updater: RowSelectionState | ((old: RowSelectionState) => RowSelectionState)) => {
+    const next = typeof updater === "function" ? updater(rowSelection) : updater;
+    if (onRowSelectionChange) onRowSelectionChange(next);
+    else setLocalSelection(next);
+  };
 
   const filteredData = useMemo(() => {
     let d = data;
@@ -56,6 +73,31 @@ export function ChurnTable({ data }: ChurnTableProps) {
 
   const columns = useMemo(
     () => [
+      ...(enableSelection
+        ? [
+            col.display({
+              id: "select",
+              header: ({ table }) => (
+                <input
+                  type="checkbox"
+                  checked={table.getIsAllPageRowsSelected()}
+                  onChange={table.getToggleAllPageRowsSelectedHandler()}
+                  className="w-4 h-4 rounded border-gray-300 accent-[#185FA5]"
+                />
+              ),
+              cell: ({ row }) => (
+                <input
+                  type="checkbox"
+                  checked={row.getIsSelected()}
+                  onChange={row.getToggleSelectedHandler()}
+                  onClick={(e) => e.stopPropagation()}
+                  className="w-4 h-4 rounded border-gray-300 accent-[#185FA5]"
+                />
+              ),
+              enableSorting: false,
+            }),
+          ]
+        : []),
       col.accessor("nombre", {
         header: "Cliente",
         cell: (info) => (
@@ -126,8 +168,11 @@ export function ChurnTable({ data }: ChurnTableProps) {
   const table = useReactTable({
     data: filteredData,
     columns,
-    state: { sorting },
+    state: { sorting, rowSelection },
     onSortingChange: setSorting,
+    onRowSelectionChange: setRowSelection,
+    enableRowSelection: enableSelection,
+    getRowId: (row) => row.cedula,
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),

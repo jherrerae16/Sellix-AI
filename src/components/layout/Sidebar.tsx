@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import {
   LayoutDashboard, ShoppingCart, AlertTriangle,
   RefreshCcw, Star, Zap, Upload, Search,
+  DollarSign, BarChart3,
 } from "lucide-react";
 import { useRole } from "@/lib/RoleContext";
 
@@ -23,18 +24,39 @@ const cajeroNav = [
   { label: "Reposición",       href: "/reposicion",icon: <RefreshCcw className="w-5 h-5" /> },
 ];
 
+const nextaitechNav = [
+  { label: "Comisiones",       href: "/comisiones", icon: <DollarSign className="w-5 h-5" /> },
+];
+
+const roleBadge: Record<string, { label: string; color: string }> = {
+  cajero: { label: "Cajero", color: "bg-emerald-100 text-emerald-700" },
+  nextaitech: { label: "Next AI Tech", color: "bg-violet-100 text-violet-700" },
+};
+
 export function Sidebar() {
   const pathname = usePathname();
   const { role } = useRole();
-  const navItems = role === "cajero" ? cajeroNav : adminNav;
+
+  const navItems = role === "cajero"
+    ? cajeroNav
+    : role === "nextaitech"
+    ? nextaitechNav
+    : adminNav;
+
+  const badge = role ? roleBadge[role] : null;
 
   return (
     <aside className="w-60 flex-shrink-0 bg-white border-r border-gray-200 flex flex-col">
       <div className="h-16 flex items-center px-5 border-b border-gray-200">
-        <span className="text-lg font-bold text-brand-blue">Sellix AI</span>
-        {role === "cajero" && (
-          <span className="ml-2 text-xs bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded font-medium">
-            Cajero
+        <div className="flex items-center gap-2">
+          <div className="w-7 h-7 bg-gradient-to-br from-blue-500 to-blue-700 rounded-lg flex items-center justify-center">
+            <BarChart3 className="w-3.5 h-3.5 text-white" />
+          </div>
+          <span className="text-lg font-bold text-brand-blue">Sellix AI</span>
+        </div>
+        {badge && (
+          <span className={`ml-auto text-xs px-1.5 py-0.5 rounded font-medium ${badge.color}`}>
+            {badge.label}
           </span>
         )}
       </div>

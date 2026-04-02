@@ -4,7 +4,7 @@
 // =============================================================
 
 import { getReposicionesPendientes } from "@/lib/dataService";
-import { ReposicionTable } from "@/components/tables/ReposicionTable";
+import { ReposicionCampaignView } from "@/components/campaigns/ReposicionCampaignView";
 import { RefreshCcw } from "lucide-react";
 
 export default async function ReposicionPage() {
@@ -67,7 +67,7 @@ export default async function ReposicionPage() {
 
       {/* Tabla principal */}
       <div className="bg-white rounded-xl border border-gray-200 p-5">
-        <ReposicionTable data={reposiciones} />
+        <ReposicionCampaignView data={reposiciones} />
       </div>
     </div>
   );

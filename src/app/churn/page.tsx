@@ -4,7 +4,7 @@
 // =============================================================
 
 import { getClientesChurn } from "@/lib/dataService";
-import { ChurnTable } from "@/components/tables/ChurnTable";
+import { ChurnCampaignView } from "@/components/campaigns/ChurnCampaignView";
 import { AlertTriangle } from "lucide-react";
 import { AdminOnly } from "@/components/layout/AdminOnly";
 
@@ -52,7 +52,7 @@ export default async function ChurnPage() {
 
       {/* Tabla principal */}
       <div className="bg-white rounded-xl border border-gray-200 p-5">
-        <ChurnTable data={clientes} />
+        <ChurnCampaignView data={clientes} />
       </div>
     </div>
     </AdminOnly>

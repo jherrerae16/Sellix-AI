@@ -10,6 +10,7 @@ import {
   flexRender,
   createColumnHelper,
   type SortingState,
+  type RowSelectionState,
 } from "@tanstack/react-table";
 import {
   ChevronUp, ChevronDown, ChevronsUpDown, Phone,
@@ -22,6 +23,9 @@ import { ExportButton } from "@/components/ui/ExportButton";
 
 interface ReposicionTableProps {
   data: ReposicionPendiente[];
+  rowSelection?: RowSelectionState;
+  onRowSelectionChange?: (selection: RowSelectionState) => void;
+  enableSelection?: boolean;
 }
 
 type EstadoFilter = "Todos" | "Vencido" | "Esta semana" | "Próximo mes";
@@ -218,13 +222,26 @@ function HistorialPopup({
 
 // ── Tabla principal ─────────────────────────────────────────
 
-export function ReposicionTable({ data }: ReposicionTableProps) {
+export function ReposicionTable({
+  data,
+  rowSelection: controlledSelection,
+  onRowSelectionChange,
+  enableSelection = false,
+}: ReposicionTableProps) {
   const [sorting, setSorting] = useState<SortingState>([
     { id: "dias_para_reposicion", desc: false },
   ]);
   const [estadoFilter, setEstadoFilter] = useState<EstadoFilter>("Todos");
   const [searchQuery, setSearchQuery] = useState("");
   const [selected, setSelected] = useState<ReposicionPendiente | null>(null);
+  const [localSelection, setLocalSelection] = useState<RowSelectionState>({});
+
+  const rowSelection = controlledSelection ?? localSelection;
+  const setRowSelection = (updater: RowSelectionState | ((old: RowSelectionState) => RowSelectionState)) => {
+    const next = typeof updater === "function" ? updater(rowSelection) : updater;
+    if (onRowSelectionChange) onRowSelectionChange(next);
+    else setLocalSelection(next);
+  };
 
   const conteos = useMemo(() => ({
     Vencido: data.filter((r) => r.estado === "Vencido").length,
@@ -249,6 +266,31 @@ export function ReposicionTable({ data }: ReposicionTableProps) {
 
   const columns = useMemo(
     () => [
+      ...(enableSelection
+        ? [
+            col.display({
+              id: "select",
+              header: ({ table }) => (
+                <input
+                  type="checkbox"
+                  checked={table.getIsAllPageRowsSelected()}
+                  onChange={table.getToggleAllPageRowsSelectedHandler()}
+                  className="w-4 h-4 rounded border-gray-300 accent-[#185FA5]"
+                />
+              ),
+              cell: ({ row }) => (
+                <input
+                  type="checkbox"
+                  checked={row.getIsSelected()}
+                  onChange={row.getToggleSelectedHandler()}
+                  onClick={(e) => e.stopPropagation()}
+                  className="w-4 h-4 rounded border-gray-300 accent-[#185FA5]"
+                />
+              ),
+              enableSorting: false,
+            }),
+          ]
+        : []),
       col.accessor("nombre", {
         header: "Cliente",
         cell: (info) => (
@@ -338,8 +380,11 @@ export function ReposicionTable({ data }: ReposicionTableProps) {
   const table = useReactTable({
     data: filteredData,
     columns,
-    state: { sorting },
+    state: { sorting, rowSelection },
     onSortingChange: setSorting,
+    onRowSelectionChange: setRowSelection,
+    enableRowSelection: enableSelection,
+    getRowId: (row) => `${row.cedula}_${row.producto}`,
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
