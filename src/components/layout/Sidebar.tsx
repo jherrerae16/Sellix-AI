@@ -5,13 +5,14 @@ import { usePathname } from "next/navigation";
 import {
   LayoutDashboard, ShoppingCart, AlertTriangle,
   RefreshCcw, Star, Zap, Upload, Search,
-  DollarSign, BarChart3, Target,
+  DollarSign, BarChart3, Target, TrendingDown,
 } from "lucide-react";
 import { useRole } from "@/lib/RoleContext";
 
 const adminNav = [
   { label: "Resumen",          href: "/",          icon: <LayoutDashboard className="w-5 h-5" /> },
   { label: "Next Best Action", href: "/acciones",  icon: <Target className="w-5 h-5" /> },
+  { label: "Cotizador",        href: "/cotizador", icon: <TrendingDown className="w-5 h-5" /> },
   { label: "Venta Cruzada",    href: "/cruzada",   icon: <ShoppingCart className="w-5 h-5" /> },
   { label: "Churn",            href: "/churn",     icon: <AlertTriangle className="w-5 h-5" /> },
   { label: "Reposición",       href: "/reposicion",icon: <RefreshCcw className="w-5 h-5" /> },

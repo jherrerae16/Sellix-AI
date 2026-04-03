@@ -235,6 +235,24 @@ export interface CopilotMessage {
   timestamp: string;
 }
 
+// =============================================================
+// Cotizador / Comparador de precios
+// =============================================================
+
+export interface ProductPrice {
+  codigo: string;
+  nombre: string;
+  precio_nuestro: number;
+  competidores: {
+    nombre: string;
+    precio: number;
+    diferencia_pct: number;
+  }[];
+  ahorro_max: number;
+  ahorro_max_pct: number;
+  categoria: string;
+}
+
 export interface CopilotData {
   type: "table" | "kpi" | "actions" | "campaign_preview";
   title: string;
