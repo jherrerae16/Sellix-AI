@@ -1,17 +1,18 @@
 "use client";
 
+import { useState } from "react";
+import { Sparkles } from "lucide-react";
 import { useRole } from "@/lib/RoleContext";
 import { Sidebar } from "./Sidebar";
 import { TopBar } from "./TopBar";
 import { LandingPage } from "@/components/landing/LandingPage";
+import { CopilotChat } from "@/components/copilot/CopilotChat";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const { role } = useRole();
+  const [copilotOpen, setCopilotOpen] = useState(false);
 
-  // No role selected → show landing page
-  if (!role) {
-    return <LandingPage />;
-  }
+  if (!role) return <LandingPage />;
 
   return (
     <div className="flex h-screen overflow-hidden">
@@ -22,6 +23,19 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           {children}
         </main>
       </div>
+
+      {/* Copilot FAB — only for admin */}
+      {role === "admin" && (
+        <button
+          onClick={() => setCopilotOpen(true)}
+          className="fixed bottom-6 right-6 z-30 w-14 h-14 bg-gradient-to-br from-brand-blue to-blue-700 text-white rounded-2xl shadow-lg shadow-blue-500/30 flex items-center justify-center hover:shadow-xl hover:scale-105 transition-all"
+          title="Abrir Copiloto"
+        >
+          <Sparkles className="w-6 h-6" />
+        </button>
+      )}
+
+      <CopilotChat isOpen={copilotOpen} onClose={() => setCopilotOpen(false)} />
     </div>
   );
 }

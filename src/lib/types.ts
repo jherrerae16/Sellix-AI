@@ -204,3 +204,42 @@ export interface CommissionSummary {
     ingresos: number;
   }[];
 }
+
+// =============================================================
+// Next Best Action
+// =============================================================
+
+export type ActionPriority = "critica" | "alta" | "media" | "baja";
+export type ActionCategory = "churn" | "reposicion" | "venta_cruzada" | "vip" | "gancho";
+
+export interface NextAction {
+  id: string;
+  category: ActionCategory;
+  title: string;
+  description: string;
+  priority: ActionPriority;
+  clientes: number;
+  ingreso_estimado: number;
+  href: string;
+  cta: string;
+}
+
+// =============================================================
+// Copilot
+// =============================================================
+
+export interface CopilotMessage {
+  role: "user" | "assistant";
+  content: string;
+  data?: CopilotData | null;
+  timestamp: string;
+}
+
+export interface CopilotData {
+  type: "table" | "kpi" | "actions" | "campaign_preview";
+  title: string;
+  rows?: Record<string, string | number>[];
+  columns?: string[];
+  kpis?: { label: string; value: string }[];
+  actions?: { label: string; href: string }[];
+}
