@@ -243,6 +243,9 @@ export interface ProductPrice {
   codigo: string;
   nombre: string;
   precio_nuestro: number;
+  precio_unidad?: number;
+  precio_caja?: number;
+  transacciones?: number;
   competidores: {
     nombre: string;
     precio: number;

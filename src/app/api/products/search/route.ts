@@ -1,7 +1,7 @@
 // =============================================================
-// Sellix AI — Búsqueda de productos + comparación de precios
-// Estima precio unitario por tipo de producto y genera precios
-// de competencia con markup del 10-25%
+// Sellix AI — Búsqueda de productos con PRECIOS REALES
+// Lee precios del catálogo generado desde el Excel de ventas
+// y genera comparación con competencia (+10-25% markup)
 // =============================================================
 
 import { NextRequest, NextResponse } from "next/server";
@@ -9,95 +9,25 @@ import { readFile } from "fs/promises";
 import { join } from "path";
 import type { ProductPrice } from "@/lib/types";
 
-const DATA_DIR = join(process.cwd(), "public", "data");
+const CATALOG_PATH = join(process.cwd(), "public", "data", "precios_catalogo.json");
 
-interface ProductRecord {
-  nombre: string;
+interface CatalogEntry {
   codigo: string;
-  categoria_gancho: string;
-  ticket_promedio_en_sesion: number;
+  nombre: string;
+  precio_unidad: number;
+  precio_caja: number;
+  transacciones: number;
+  unidades_vendidas: number;
+  ingreso_total: number;
 }
 
-// ── Price estimation by product type ───────────────────────────
-// Based on typical Colombian pharmacy pricing (COP)
-
-function estimatePrice(nombre: string): number {
-  const n = nombre.toUpperCase();
-
-  // Expensive categories
-  if (n.includes("TENSIOMETRO") || n.includes("GLUCOMETRO") || n.includes("NEBULIZADOR"))
-    return 45000 + Math.round(Math.random() * 80000);
-  if (n.includes("INSULINA") || n.includes("HUMIRA") || n.includes("ENBREL"))
-    return 120000 + Math.round(Math.random() * 200000);
-
-  // Medium-high: injectables, creams, specialized
-  if (n.includes("INYECT") || n.includes("AMPOLLA") || n.includes("SOLUCION INYECTABLE"))
-    return 15000 + Math.round(Math.random() * 35000);
-  if (n.includes("CREMA") || n.includes("GEL") || n.includes("UNGÜENTO") || n.includes("POMADA"))
-    return 12000 + Math.round(Math.random() * 28000);
-  if (n.includes("JARABE") || n.includes("SUSPENSION") || n.includes("SOLUCION ORAL"))
-    return 10000 + Math.round(Math.random() * 25000);
-  if (n.includes("GOTAS") || n.includes("SPRAY") || n.includes("INHALADOR"))
-    return 14000 + Math.round(Math.random() * 30000);
-
-  // Supplements & vitamins
-  if (n.includes("VITAMINA") || n.includes("CALCIO") || n.includes("OMEGA") || n.includes("COLAGENO"))
-    return 18000 + Math.round(Math.random() * 40000);
-
-  // Standard tablets/capsules — most common
-  if (n.includes("TABLETA") || n.includes("TAB") || n.includes("CAPSULA") || n.includes("COMP"))  {
-    // Parse quantity hints
-    const match = n.match(/(\d+)\s*(TABLETA|TAB|CAPSULA|COMP)/i);
-    const qty = match ? parseInt(match[1]) : 20;
-    const basePerUnit = 400 + Math.round(Math.random() * 800);
-    return Math.max(5000, basePerUnit * qty);
-  }
-
-  // Generic OTC
-  if (n.includes("ACETAMINOFEN") || n.includes("IBUPROFENO") || n.includes("ASPIRINA"))
-    return 3500 + Math.round(Math.random() * 6000);
-
-  // Bandages, devices, misc
-  if (n.includes("VENDA") || n.includes("GASA") || n.includes("CURITAS") || n.includes("ALCOHOL"))
-    return 3000 + Math.round(Math.random() * 8000);
-
-  // Default: mid-range pharma product
-  return 8000 + Math.round(Math.random() * 25000);
-}
-
-// Use a seeded random so prices are consistent per product
+// Deterministic random from product code (so prices don't change on each request)
 function seededRandom(seed: string): number {
   let h = 0;
   for (let i = 0; i < seed.length; i++) {
     h = ((h << 5) - h + seed.charCodeAt(i)) | 0;
   }
   return Math.abs(h % 10000) / 10000;
-}
-
-function getStablePrice(nombre: string, codigo: string): number {
-  const seed = codigo + nombre;
-  const r = seededRandom(seed);
-  const n = nombre.toUpperCase();
-
-  // Use category-based ranges with deterministic variation
-  if (n.includes("TENSIOMETRO") || n.includes("GLUCOMETRO")) return 45000 + Math.round(r * 80000);
-  if (n.includes("INSULINA")) return 120000 + Math.round(r * 200000);
-  if (n.includes("INYECT") || n.includes("AMPOLLA")) return 15000 + Math.round(r * 35000);
-  if (n.includes("CREMA") || n.includes("GEL") || n.includes("POMADA")) return 12000 + Math.round(r * 28000);
-  if (n.includes("JARABE") || n.includes("SUSPENSION")) return 10000 + Math.round(r * 25000);
-  if (n.includes("GOTAS") || n.includes("SPRAY")) return 14000 + Math.round(r * 30000);
-  if (n.includes("VITAMINA") || n.includes("OMEGA") || n.includes("CALCIO")) return 18000 + Math.round(r * 40000);
-
-  if (n.includes("TABLETA") || n.includes("TAB") || n.includes("CAPSULA") || n.includes("COMP")) {
-    const match = n.match(/(\d+)\s*(TABLETA|TAB|CAPSULA|COMP)/i);
-    const qty = match ? parseInt(match[1]) : 20;
-    return Math.max(5000, Math.round((400 + r * 800) * qty));
-  }
-
-  if (n.includes("ACETAMINOFEN") || n.includes("IBUPROFENO")) return 3500 + Math.round(r * 6000);
-  if (n.includes("VENDA") || n.includes("GASA") || n.includes("ALCOHOL")) return 3000 + Math.round(r * 8000);
-
-  return 8000 + Math.round(r * 25000);
 }
 
 const COMPETITOR_NAMES = [
@@ -107,37 +37,41 @@ const COMPETITOR_NAMES = [
   "La Rebaja",
 ];
 
-function generateCompetitors(ourPrice: number, seed: string) {
-  // Pick 2-3 competitors
-  const r1 = seededRandom(seed + "c1");
-  const r2 = seededRandom(seed + "c2");
-  const r3 = seededRandom(seed + "c3");
+function generateCompetitors(ourPrice: number, codigo: string) {
+  const r1 = seededRandom(codigo + "c1");
+  const r2 = seededRandom(codigo + "c2");
+  const r3 = seededRandom(codigo + "c3");
+
+  // Pick 2 different competitors
+  const idx1 = Math.floor(r1 * COMPETITOR_NAMES.length);
+  let idx2 = Math.floor(r2 * COMPETITOR_NAMES.length);
+  if (idx2 === idx1) idx2 = (idx2 + 1) % COMPETITOR_NAMES.length;
 
   const competitors = [
     {
-      nombre: COMPETITOR_NAMES[Math.floor(r1 * COMPETITOR_NAMES.length)],
+      nombre: COMPETITOR_NAMES[idx1],
       markup: 0.10 + r1 * 0.18, // 10-28% more expensive
     },
     {
-      nombre: COMPETITOR_NAMES[Math.floor(r2 * COMPETITOR_NAMES.length) === Math.floor(r1 * COMPETITOR_NAMES.length)
-        ? (Math.floor(r2 * COMPETITOR_NAMES.length) + 1) % COMPETITOR_NAMES.length
-        : Math.floor(r2 * COMPETITOR_NAMES.length)],
+      nombre: COMPETITOR_NAMES[idx2],
       markup: 0.08 + r2 * 0.22, // 8-30% more expensive
     },
   ];
 
-  // Occasionally add a third competitor
+  // 50% chance of a third competitor
   if (r3 > 0.5) {
+    let idx3 = Math.floor(r3 * COMPETITOR_NAMES.length);
+    if (idx3 === idx1 || idx3 === idx2) idx3 = (idx3 + 2) % COMPETITOR_NAMES.length;
     competitors.push({
-      nombre: COMPETITOR_NAMES[Math.floor(r3 * COMPETITOR_NAMES.length)],
+      nombre: COMPETITOR_NAMES[idx3],
       markup: 0.05 + r3 * 0.25,
     });
   }
 
   return competitors.map((c) => {
     const precio = Math.round(ourPrice * (1 + c.markup));
-    // Round to nearest 100 for realism
-    const precioRounded = Math.round(precio / 100) * 100;
+    // Round to nearest 50 for realism
+    const precioRounded = Math.round(precio / 50) * 50;
     return {
       nombre: c.nombre,
       precio: precioRounded,
@@ -148,13 +82,14 @@ function generateCompetitors(ourPrice: number, seed: string) {
 
 function categorize(nombre: string): string {
   const n = nombre.toUpperCase();
-  if (n.includes("TABLETA") || n.includes("TAB") || n.includes("CAPSULA") || n.includes("COMP")) return "Tabletas / Cápsulas";
-  if (n.includes("JARABE") || n.includes("SUSPENSION")) return "Jarabes / Suspensiones";
-  if (n.includes("CREMA") || n.includes("GEL") || n.includes("POMADA")) return "Cremas / Geles";
-  if (n.includes("GOTAS") || n.includes("SPRAY")) return "Gotas / Sprays";
-  if (n.includes("INYECT") || n.includes("AMPOLLA")) return "Inyectables";
-  if (n.includes("VITAMINA") || n.includes("OMEGA")) return "Suplementos";
-  if (n.includes("VENDA") || n.includes("GASA")) return "Dispositivos médicos";
+  if (n.includes("TABLETA") || n.includes("TBS") || n.includes("TAB") || n.includes("CAPSULA") || n.includes("COMP")) return "Tabletas / Cápsulas";
+  if (n.includes("JARABE") || n.includes("SUSPENSION") || n.includes("SOLUCION")) return "Jarabes / Soluciones";
+  if (n.includes("CREMA") || n.includes("GEL") || n.includes("POMADA") || n.includes("UNGÜENTO")) return "Cremas / Geles";
+  if (n.includes("GOTAS") || n.includes("SPRAY") || n.includes("INHALADOR")) return "Gotas / Sprays";
+  if (n.includes("INYECT") || n.includes("AMPOLLA") || n.includes("JERINGA")) return "Inyectables";
+  if (n.includes("VITAMINA") || n.includes("OMEGA") || n.includes("CALCIO") || n.includes("COLAGENO")) return "Suplementos";
+  if (n.includes("VENDA") || n.includes("GASA") || n.includes("GUANTE") || n.includes("TAPABOCA")) return "Dispositivos médicos";
+  if (n.includes("SHAMPO") || n.includes("JABON") || n.includes("BLOQUEADOR")) return "Cuidado personal";
   return "Medicamentos generales";
 }
 
@@ -163,40 +98,59 @@ export async function GET(request: NextRequest) {
     const url = new URL(request.url);
     const query = url.searchParams.get("q")?.toLowerCase() || "";
     const limit = parseInt(url.searchParams.get("limit") || "20");
+    const priceType = url.searchParams.get("tipo") || "unidad"; // "unidad" or "caja"
 
     if (query.length < 2) {
       return NextResponse.json({ results: [], total: 0 });
     }
 
-    const raw = await readFile(join(DATA_DIR, "productos_gancho.json"), "utf-8");
-    const products: ProductRecord[] = JSON.parse(raw);
+    const raw = await readFile(CATALOG_PATH, "utf-8");
+    const catalog: CatalogEntry[] = JSON.parse(raw);
 
-    // Search by name
-    const matches = products.filter((p) =>
-      p.nombre.toLowerCase().includes(query)
-    );
+    // Search by name (support multiple words)
+    const words = query.split(/\s+/).filter(Boolean);
+    const matches = catalog.filter((p) => {
+      const nombre = p.nombre.toLowerCase();
+      return words.every((w) => nombre.includes(w));
+    });
 
     const results: ProductPrice[] = matches.slice(0, limit).map((p) => {
-      const precio = getStablePrice(p.nombre, p.codigo);
-      const competidores = generateCompetitors(precio, p.codigo);
+      // Use the requested price type
+      const nuestroPrecio = priceType === "caja" && p.precio_caja > 0
+        ? p.precio_caja
+        : p.precio_unidad;
+
+      const competidores = generateCompetitors(nuestroPrecio, p.codigo);
       const maxComp = Math.max(...competidores.map((c) => c.precio));
 
       return {
         codigo: p.codigo,
         nombre: p.nombre,
-        precio_nuestro: precio,
+        precio_nuestro: nuestroPrecio,
         competidores,
-        ahorro_max: maxComp - precio,
-        ahorro_max_pct: Math.round(((maxComp - precio) / maxComp) * 100),
+        ahorro_max: maxComp - nuestroPrecio,
+        ahorro_max_pct: maxComp > 0 ? Math.round(((maxComp - nuestroPrecio) / maxComp) * 100) : 0,
         categoria: categorize(p.nombre),
+        // Extra real data
+        precio_unidad: p.precio_unidad,
+        precio_caja: p.precio_caja,
+        transacciones: p.transacciones,
       };
     });
 
-    // Sort by best match (shortest name that contains query = most relevant)
-    results.sort((a, b) => a.nombre.length - b.nombre.length);
+    // Sort: most transactions first (popular products = more relevant)
+    results.sort((a, b) => ((b as unknown as Record<string, number>).transacciones || 0) - ((a as unknown as Record<string, number>).transacciones || 0));
 
     return NextResponse.json({ results, total: matches.length });
   } catch (err) {
+    // If catalog doesn't exist, hint to generate it
+    if ((err as NodeJS.ErrnoException).code === "ENOENT") {
+      return NextResponse.json({
+        error: "Catálogo de precios no generado. Suba un archivo de ventas y ejecute POST /api/products/generate",
+        results: [],
+        total: 0,
+      });
+    }
     return NextResponse.json(
       { error: err instanceof Error ? err.message : "Error buscando productos" },
       { status: 500 }

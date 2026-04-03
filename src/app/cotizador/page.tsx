@@ -34,10 +34,15 @@ function PriceCard({ product, onSend }: { product: ProductPrice; onSend: (p: Pro
           <div className="flex-1">
             <span className="text-xs text-gray-400 font-mono">{product.codigo}</span>
             <h3 className="font-semibold text-gray-900 text-sm mt-0.5 leading-snug">{product.nombre}</h3>
-            <span className="inline-flex items-center gap-1 text-xs text-gray-500 mt-1">
-              <Package className="w-3 h-3" />
-              {product.categoria}
-            </span>
+            <div className="flex items-center gap-3 mt-1">
+              <span className="inline-flex items-center gap-1 text-xs text-gray-500">
+                <Package className="w-3 h-3" />
+                {product.categoria}
+              </span>
+              {product.transacciones && (
+                <span className="text-xs text-gray-400">{product.transacciones} ventas</span>
+              )}
+            </div>
           </div>
           <div className="flex-shrink-0 bg-green-50 border border-green-200 rounded-xl px-3 py-2 text-center">
             <p className="text-xs text-green-600 font-medium">Ahorro hasta</p>
@@ -49,15 +54,23 @@ function PriceCard({ product, onSend }: { product: ProductPrice; onSend: (p: Pro
       {/* Price comparison */}
       <div className="px-5 pb-4 space-y-2">
         {/* Our price — highlighted */}
-        <div className="flex items-center justify-between p-3 bg-blue-50 border border-blue-200 rounded-xl">
-          <div className="flex items-center gap-2">
-            <ShieldCheck className="w-5 h-5 text-brand-blue" />
-            <div>
-              <p className="text-sm font-bold text-brand-blue">Droguería Super Ofertas</p>
-              <p className="text-xs text-blue-500">Nuestro precio</p>
+        <div className="p-3 bg-blue-50 border border-blue-200 rounded-xl">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <ShieldCheck className="w-5 h-5 text-brand-blue" />
+              <div>
+                <p className="text-sm font-bold text-brand-blue">Droguería Super Ofertas</p>
+                <p className="text-xs text-blue-500">Precio real de venta</p>
+              </div>
             </div>
+            <p className="text-xl font-bold text-brand-blue">{formatCOP(product.precio_nuestro)}</p>
           </div>
-          <p className="text-xl font-bold text-brand-blue">{formatCOP(product.precio_nuestro)}</p>
+          {product.precio_caja && product.precio_caja > 0 && product.precio_unidad && product.precio_unidad !== product.precio_caja && (
+            <div className="flex gap-3 mt-2 pt-2 border-t border-blue-200">
+              <span className="text-xs text-blue-600">Unidad: <strong>{formatCOP(product.precio_unidad)}</strong></span>
+              <span className="text-xs text-blue-600">Caja: <strong>{formatCOP(product.precio_caja)}</strong></span>
+            </div>
+          )}
         </div>
 
         {/* Competitors */}
