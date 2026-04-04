@@ -10,10 +10,8 @@ import { applyFunnelRules } from "@/lib/funnelEngine";
 import type { Conversation, ChatMessage, Order, Payment } from "@/lib/types";
 
 export async function GET() {
-  let convs = await loadConversations();
-  if (convs.length === 0) {
-    convs = await generateDemoData();
-  }
+  const convs = await loadConversations();
+  // No demo data — conversations come from real WhatsApp webhook only
 
   // Summary
   const summary = {

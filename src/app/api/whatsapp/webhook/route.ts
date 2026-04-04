@@ -9,7 +9,7 @@
 // =============================================================
 
 import { NextRequest, NextResponse } from "next/server";
-import { loadConversations, saveConversations, generateDemoData } from "@/lib/crmData";
+import { loadConversations, saveConversations } from "@/lib/crmData";
 import { applyFunnelRules } from "@/lib/funnelEngine";
 import type { Conversation, ChatMessage } from "@/lib/types";
 
@@ -23,7 +23,10 @@ export async function POST(request: NextRequest) {
     const numMedia = parseInt(formData.get("NumMedia") as string || "0");
     const mediaUrl = formData.get("MediaUrl0") as string | null; // Image URL if sent
 
-    if (!from || !body) {
+    console.log("WEBHOOK RECEIVED:", { from, body: body?.slice(0, 50), profileName, numMedia });
+
+    if (!from) {
+      console.log("WEBHOOK: No 'From' field — ignoring");
       return new NextResponse("OK", { status: 200 });
     }
 
@@ -31,10 +34,7 @@ export async function POST(request: NextRequest) {
     const phone = from.replace("whatsapp:", "");
 
     // Load existing conversations
-    let convs = await loadConversations();
-    if (convs.length === 0) {
-      convs = await generateDemoData();
-    }
+    const convs = await loadConversations();
 
     // Find existing conversation by phone
     let conv = convs.find((c) => c.cliente.telefono === phone);
@@ -68,7 +68,7 @@ export async function POST(request: NextRequest) {
       id: `msg_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
       timestamp: new Date().toISOString(),
       from: "cliente",
-      text: numMedia > 0 && mediaUrl ? `📷 [Imagen adjunta]\n${body || ""}` : body,
+      text: numMedia > 0 && mediaUrl ? `📷 [Imagen adjunta]\n${body || ""}` : (body || "(mensaje vacío)"),
       type: numMedia > 0 ? "image" : "text",
     };
 
@@ -80,6 +80,8 @@ export async function POST(request: NextRequest) {
     applyFunnelRules(conv);
 
     await saveConversations(convs);
+
+    console.log("WEBHOOK: Message saved for", phone, "- Total convs:", convs.length);
 
     // Respond with empty TwiML (acknowledge receipt, no auto-reply)
     return new NextResponse(

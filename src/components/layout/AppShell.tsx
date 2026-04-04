@@ -1,18 +1,25 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Sparkles } from "lucide-react";
 import { useRole } from "@/lib/RoleContext";
 import { Sidebar } from "./Sidebar";
 import { TopBar } from "./TopBar";
-import { LandingPage } from "@/components/landing/LandingPage";
 import { CopilotChat } from "@/components/copilot/CopilotChat";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
-  const { role } = useRole();
+  const { role, setRole } = useRole();
   const [copilotOpen, setCopilotOpen] = useState(false);
 
-  if (!role) return <LandingPage />;
+  // If authenticated but no role selected, default to admin
+  useEffect(() => {
+    if (!role) {
+      setRole("admin");
+    }
+  }, [role, setRole]);
+
+  // Show nothing while role is being set
+  if (!role) return null;
 
   return (
     <div className="flex h-screen overflow-hidden">

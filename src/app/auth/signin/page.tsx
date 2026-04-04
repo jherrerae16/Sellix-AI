@@ -3,7 +3,15 @@
 import { useState } from "react";
 import { signIn } from "next-auth/react";
 import { useSearchParams } from "next/navigation";
-import { BarChart3, Loader2, AlertCircle, Lock } from "lucide-react";
+import {
+  BarChart3, Loader2, AlertCircle, Shield,
+  TrendingUp, Users, MessageCircle,
+} from "lucide-react";
+
+const ROLES = [
+  { key: "admin", label: "ADMINISTRADOR", sublabel: "admin", icon: <Shield className="w-3.5 h-3.5 text-emerald-400" /> },
+  { key: "nextaitech", label: "NEXT AI TECH", sublabel: "platform", icon: <BarChart3 className="w-3.5 h-3.5 text-violet-400" /> },
+];
 
 export default function SignInPage() {
   const [username, setUsername] = useState("");
@@ -26,75 +34,164 @@ export default function SignInPage() {
     });
 
     if (result?.error) {
-      setError("Usuario o contraseña incorrectos");
+      setError("Credenciales inválidas. Verifique e intente de nuevo.");
       setLoading(false);
     } else if (result?.ok) {
-      // Set admin role so AppShell skips landing page
       localStorage.setItem("sellix-role", "admin");
       window.location.href = callbackUrl;
     }
   };
 
-  return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-[#0a1628] via-[#112240] to-[#1a365d] px-4">
-      {/* Background effects */}
-      <div className="absolute top-20 left-1/4 w-72 h-72 bg-blue-500/20 rounded-full blur-[120px]" />
-      <div className="absolute bottom-20 right-1/4 w-96 h-96 bg-violet-500/15 rounded-full blur-[150px]" />
+  const fillDemo = (role: string) => {
+    if (role === "admin") {
+      setUsername("admin");
+      setPassword("admin123");
+    }
+  };
 
-      <div className="relative w-full max-w-md">
-        {/* Logo */}
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-blue-400 to-blue-600 rounded-2xl shadow-lg shadow-blue-500/25 mb-4">
-            <BarChart3 className="w-8 h-8 text-white" />
+  return (
+    <div className="min-h-screen flex bg-[#0a0e1a]">
+      {/* Left side — Hero */}
+      <div className="hidden lg:flex flex-1 flex-col justify-center px-16 relative overflow-hidden">
+        {/* Background effects */}
+        <div className="absolute top-1/4 left-1/3 w-80 h-80 bg-blue-600/15 rounded-full blur-[150px]" />
+        <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-emerald-600/10 rounded-full blur-[180px]" />
+        <div className="absolute top-10 right-10 w-64 h-64 bg-violet-600/10 rounded-full blur-[120px]" />
+
+        {/* Dot pattern */}
+        <div
+          className="absolute inset-0 opacity-[0.03]"
+          style={{
+            backgroundImage: "radial-gradient(circle at 1px 1px, white 1px, transparent 0)",
+            backgroundSize: "32px 32px",
+          }}
+        />
+
+        <div className="relative z-10 max-w-lg">
+          {/* Status badge */}
+          <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-emerald-500/10 border border-emerald-500/20 rounded-full mb-8">
+            <span className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse" />
+            <span className="text-emerald-400 text-xs font-semibold tracking-wider uppercase">
+              AI Engine Online
+            </span>
           </div>
-          <h1 className="text-2xl font-bold text-white">Sellix AI</h1>
-          <p className="text-blue-300/60 text-sm mt-1">Inteligencia de Ventas</p>
+
+          {/* Title */}
+          <h1 className="text-5xl lg:text-6xl font-black text-white leading-[1.1] tracking-tight">
+            Sellix AI.
+          </h1>
+
+          <p className="mt-5 text-lg text-gray-400 leading-relaxed max-w-md">
+            Inteligencia comercial y ventas por WhatsApp para droguerías.
+          </p>
+
+          {/* Feature card */}
+          <div className="mt-10 bg-white/[0.04] backdrop-blur border border-white/[0.06] rounded-2xl p-5 max-w-sm">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-9 h-9 bg-emerald-500/20 rounded-xl flex items-center justify-center">
+                <TrendingUp className="w-5 h-5 text-emerald-400" />
+              </div>
+              <div className="flex-1">
+                <div className="h-2 bg-white/10 rounded-full w-3/4">
+                  <div className="h-2 bg-gradient-to-r from-blue-500 to-emerald-400 rounded-full w-[85%]" />
+                </div>
+              </div>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-gray-500 uppercase tracking-wider font-medium">Análisis de ventas</span>
+              <span className="text-xs font-bold text-emerald-400">957 clientes</span>
+            </div>
+          </div>
+
+          {/* Stats row */}
+          <div className="mt-6 flex gap-8">
+            <div>
+              <p className="text-2xl font-bold text-white">6</p>
+              <p className="text-xs text-gray-500">Módulos</p>
+            </div>
+            <div>
+              <p className="text-2xl font-bold text-white">20.3K</p>
+              <p className="text-xs text-gray-500">Transacciones</p>
+            </div>
+            <div>
+              <p className="text-2xl font-bold text-white flex items-center gap-1">
+                <MessageCircle className="w-4 h-4 text-emerald-400" />
+                Live
+              </p>
+              <p className="text-xs text-gray-500">WhatsApp CRM</p>
+            </div>
+          </div>
         </div>
 
-        {/* Login card */}
-        <div className="bg-white rounded-2xl shadow-2xl p-8">
-          <div className="flex items-center gap-2 mb-6">
-            <Lock className="w-5 h-5 text-gray-400" />
-            <h2 className="text-lg font-semibold text-gray-900">Iniciar sesión</h2>
+        {/* Bottom left — Powered by */}
+        <div className="absolute bottom-8 left-16">
+          <p className="text-xs text-gray-600">
+            Powered by Next AI Tech LLC
+          </p>
+        </div>
+      </div>
+
+      {/* Right side — Login form */}
+      <div className="flex-1 lg:max-w-md xl:max-w-lg flex items-center justify-center px-8 lg:px-12">
+        <div className="w-full max-w-sm">
+          {/* Mobile logo */}
+          <div className="lg:hidden text-center mb-8">
+            <div className="inline-flex items-center justify-center w-12 h-12 bg-gradient-to-br from-blue-500 to-blue-700 rounded-2xl mb-3">
+              <BarChart3 className="w-6 h-6 text-white" />
+            </div>
+            <h1 className="text-2xl font-black text-white">Sellix AI.</h1>
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <h2 className="text-xl font-bold text-white mb-1">Bienvenido</h2>
+          <p className="text-sm text-gray-500 mb-8">
+            Acceda al panel de inteligencia comercial.
+          </p>
+
+          <form onSubmit={handleSubmit} className="space-y-5">
+            {/* Username */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Usuario</label>
+              <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">
+                Credential ID
+              </label>
               <input
                 type="text"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
-                placeholder="Ingrese su usuario"
+                placeholder="Enter workspace username"
                 required
                 autoFocus
-                className="w-full px-4 py-3 border border-gray-300 rounded-xl text-sm focus:ring-2 focus:ring-brand-blue focus:border-transparent"
+                className="w-full px-4 py-3 bg-white/[0.04] border border-white/[0.08] rounded-xl text-sm text-white placeholder-gray-600 focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500/40 transition-all outline-none"
               />
             </div>
 
+            {/* Password */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Contraseña</label>
+              <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">
+                Security Key
+              </label>
               <input
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder="Ingrese su contraseña"
+                placeholder="••••••••"
                 required
-                className="w-full px-4 py-3 border border-gray-300 rounded-xl text-sm focus:ring-2 focus:ring-brand-blue focus:border-transparent"
+                className="w-full px-4 py-3 bg-white/[0.04] border border-white/[0.08] rounded-xl text-sm text-white placeholder-gray-600 focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500/40 transition-all outline-none"
               />
             </div>
 
+            {/* Error */}
             {error && (
-              <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-xl">
-                <AlertCircle className="w-4 h-4 text-red-500 flex-shrink-0" />
-                <p className="text-sm text-red-700">{error}</p>
+              <div className="flex items-center gap-2 p-3 bg-red-500/10 border border-red-500/20 rounded-xl">
+                <AlertCircle className="w-4 h-4 text-red-400 flex-shrink-0" />
+                <p className="text-xs text-red-400">{error}</p>
               </div>
             )}
 
+            {/* Submit */}
             <button
               type="submit"
               disabled={loading || !username || !password}
-              className="w-full flex items-center justify-center gap-2 py-3 bg-brand-blue text-white font-semibold rounded-xl hover:bg-blue-800 disabled:opacity-50 transition-colors"
+              className="w-full flex items-center justify-center gap-2 py-3.5 bg-gradient-to-r from-blue-600 to-blue-500 text-white font-semibold rounded-xl hover:from-blue-500 hover:to-blue-400 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-lg shadow-blue-500/20"
             >
               {loading ? (
                 <>
@@ -102,15 +199,35 @@ export default function SignInPage() {
                   Verificando...
                 </>
               ) : (
-                "Ingresar"
+                "Iniciar Sesión"
               )}
             </button>
           </form>
-        </div>
 
-        <p className="text-center text-xs text-blue-300/40 mt-6">
-          Next AI Tech LLC · Acceso autorizado
-        </p>
+          {/* Quick access */}
+          <div className="mt-8">
+            <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-3">
+              Quick Access Demo
+            </p>
+            <div className="grid grid-cols-2 gap-2">
+              {ROLES.map((role) => (
+                <button
+                  key={role.key}
+                  onClick={() => fillDemo(role.key)}
+                  className="flex items-center gap-2 px-3 py-2.5 bg-white/[0.03] border border-white/[0.06] rounded-xl hover:bg-white/[0.06] hover:border-white/[0.1] transition-all text-left group"
+                >
+                  {role.icon}
+                  <div>
+                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider group-hover:text-gray-300">
+                      {role.label}
+                    </p>
+                    <p className="text-xs text-gray-600">{role.sublabel}</p>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );
