@@ -80,6 +80,21 @@ export async function PUT(request: NextRequest) {
         conv.messages.push(msg);
         conv.lastMessageAt = msg.timestamp;
         conv.unread = 0;
+
+        // Send via WhatsApp if client has phone number
+        if (conv.cliente.telefono && process.env.TWILIO_ACCOUNT_SID) {
+          try {
+            const baseUrl = process.env.NEXTAUTH_URL || process.env.VERCEL_URL
+              ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000";
+            await fetch(`${baseUrl}/api/whatsapp/send`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ to: conv.cliente.telefono, message: data.text }),
+            });
+          } catch {
+            // WhatsApp send failed — message still saved in CRM
+          }
+        }
         break;
       }
 

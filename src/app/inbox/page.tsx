@@ -43,7 +43,17 @@ export default function InboxPage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ id, action, ...data }),
     });
-    if (res.ok) await loadData();
+    if (res.ok) {
+      const result = await res.json();
+      if (result.conversation) {
+        // Update locally without refetching
+        setConvs((prev) =>
+          prev.map((c) => (c.id === result.conversation.id ? result.conversation : c))
+        );
+      } else {
+        await loadData();
+      }
+    }
   };
 
   if (loading) {

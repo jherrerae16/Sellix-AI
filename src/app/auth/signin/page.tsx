@@ -29,6 +29,8 @@ export default function SignInPage() {
       setError("Usuario o contraseña incorrectos");
       setLoading(false);
     } else if (result?.ok) {
+      // Set admin role so AppShell skips landing page
+      localStorage.setItem("sellix-role", "admin");
       window.location.href = callbackUrl;
     }
   };
