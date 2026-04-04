@@ -9,7 +9,7 @@ import { GoogleGenerativeAI, type FunctionDeclaration, SchemaType } from "@googl
 import { readFile } from "fs/promises";
 import { join } from "path";
 
-const DATA_DIR = join(process.cwd(), "public", "data");
+const DATA_DIR = join(process.cwd(), "data", "output");
 
 async function loadJSON<T>(filename: string): Promise<T> {
   const raw = await readFile(join(DATA_DIR, filename), "utf-8");

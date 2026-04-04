@@ -20,6 +20,21 @@ dist/
 data/raw/
 data/processed/
 
+# Uploaded files — datos sensibles de clientes
+data/uploads/*.xlsx
+data/uploads/*.xls
+data/uploads/*.csv
+
+# CRM data — conversaciones y pedidos
+data/crm/
+
+# Campaign logs — registros de mensajes enviados
+data/campaigns/
+
+# Output data — JSONs con datos de clientes (PII)
+data/output/
+public/data/*.json
+
 # Vercel
 .vercel
 

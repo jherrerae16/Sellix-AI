@@ -10,7 +10,7 @@ import { readFile } from "fs/promises";
 import { join } from "path";
 import type { ProductPrice } from "@/lib/types";
 
-const CATALOG_PATH = join(process.cwd(), "public", "data", "precios_catalogo.json");
+const CATALOG_PATH = join(process.cwd(), "data", "output", "precios_catalogo.json");
 
 interface CatalogEntry {
   codigo: string;

@@ -10,8 +10,8 @@ import { join } from "path";
 import type { MessageLog, Attribution, CommissionSummary } from "@/lib/types";
 
 const MESSAGES_LOG_PATH = join(process.cwd(), "data", "campaigns", "messages.json");
-const VENTAS_PATH = join(process.cwd(), "public", "data", "churn_clientes.json");
-const REPOSICION_PATH = join(process.cwd(), "public", "data", "reposicion_pendiente.json");
+const VENTAS_PATH = join(process.cwd(), "data", "output", "churn_clientes.json");
+const REPOSICION_PATH = join(process.cwd(), "data", "output", "reposicion_pendiente.json");
 
 const ATTRIBUTION_WINDOW_DAYS = 7;
 const COMMISSION_RATE = parseFloat(process.env.COMMISSION_RATE || "0.05");

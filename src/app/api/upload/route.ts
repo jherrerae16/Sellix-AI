@@ -8,7 +8,7 @@ import fs from "fs";
 // ─── paths ────────────────────────────────────────────────────
 
 const UPLOADS_DIR = path.join(process.cwd(), "data", "uploads");
-const DATA_DIR    = path.join(process.cwd(), "public", "data");
+const DATA_DIR    = path.join(process.cwd(), "data", "output");
 const MANIFEST    = path.join(UPLOADS_DIR, "manifest.json");
 
 // ─── manifest CRUD ────────────────────────────────────────────

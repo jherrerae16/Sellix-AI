@@ -10,7 +10,7 @@ import { join } from "path";
 import * as XLSX from "xlsx";
 
 const UPLOADS_DIR = join(process.cwd(), "data", "uploads");
-const OUTPUT_PATH = join(process.cwd(), "public", "data", "precios_catalogo.json");
+const OUTPUT_PATH = join(process.cwd(), "data", "output", "precios_catalogo.json");
 
 interface ManifestFile {
   id: string;
