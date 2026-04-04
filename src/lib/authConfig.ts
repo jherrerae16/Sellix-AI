@@ -1,14 +1,10 @@
 // =============================================================
 // Sellix AI — Configuración NextAuth.js v5
-// CredentialsProvider + bcrypt + rate limiting + cookies seguras
-// JWT expira en 8 horas
+// Compatible con Vercel Edge Runtime
 // =============================================================
 
 import type { NextAuthConfig } from "next-auth";
 import Credentials from "next-auth/providers/credentials";
-import bcrypt from "bcryptjs";
-import { rateLimiter } from "./rateLimiter";
-import { logAuthEvent } from "./logger";
 
 export const authConfig: NextAuthConfig = {
   providers: [
@@ -18,45 +14,25 @@ export const authConfig: NextAuthConfig = {
         username: { label: "Usuario", type: "text" },
         password: { label: "Contraseña", type: "password" },
       },
-      async authorize(credentials, request) {
+      async authorize(credentials) {
         const username = credentials?.username as string | undefined;
         const password = credentials?.password as string | undefined;
 
-        if (!username || !password) {
-          logAuthEvent("auth_failure", { reason: "empty_credentials" });
-          return null;
-        }
+        if (!username || !password) return null;
 
-        // Rate limiting by IP
-        const ip = (request as Request)?.headers?.get?.("x-forwarded-for") ?? "unknown";
-        if (!rateLimiter.check(ip)) {
-          logAuthEvent("auth_blocked", { username, ip });
-          return null;
-        }
-
-        // Validate against environment variables
         const validUser = process.env.APP_USER;
-        const validHash = process.env.APP_PASSWORD_HASH;
+        const validPassword = process.env.APP_PASSWORD;
 
-        if (!validUser || !validHash) {
-          logAuthEvent("auth_config_missing", { reason: "APP_USER or APP_PASSWORD_HASH not set" });
+        if (!validUser || !validPassword) {
+          console.error("AUTH: APP_USER or APP_PASSWORD not configured");
           return null;
         }
 
-        if (username !== validUser) {
-          logAuthEvent("auth_failure", { reason: "invalid_user" });
-          return null;
+        if (username === validUser && password === validPassword) {
+          return { id: "1", name: username };
         }
 
-        const isValid = await bcrypt.compare(password, validHash);
-
-        if (!isValid) {
-          logAuthEvent("auth_failure", { reason: "invalid_password" });
-          return null;
-        }
-
-        logAuthEvent("auth_success", { username });
-        return { id: "1", name: username };
+        return null;
       },
     }),
   ],
@@ -67,7 +43,7 @@ export const authConfig: NextAuthConfig = {
 
   session: {
     strategy: "jwt",
-    maxAge: 8 * 60 * 60, // 8 horas
+    maxAge: 8 * 60 * 60,
   },
 
   callbacks: {
@@ -84,21 +60,6 @@ export const authConfig: NextAuthConfig = {
         session.user.name = token.name as string;
       }
       return session;
-    },
-  },
-
-  cookies: {
-    sessionToken: {
-      name:
-        process.env.NODE_ENV === "production"
-          ? "__Secure-next-auth.session-token"
-          : "next-auth.session-token",
-      options: {
-        httpOnly: true,
-        sameSite: "lax",
-        path: "/",
-        secure: process.env.NODE_ENV === "production",
-      },
     },
   },
 };
