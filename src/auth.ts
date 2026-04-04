@@ -11,11 +11,17 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   callbacks: {
     ...authConfig.callbacks,
     authorized({ auth, request }) {
+      const { pathname } = request.nextUrl;
       const isLoggedIn = !!auth?.user;
-      const isOnSignIn = request.nextUrl.pathname.startsWith("/auth/signin");
-      const isAuthApi = request.nextUrl.pathname.startsWith("/api/auth");
 
-      if (isAuthApi || isOnSignIn) return true;
+      // Public routes — no auth required
+      const publicPaths = [
+        "/auth/signin",
+        "/api/auth",
+        "/api/whatsapp/webhook",  // Twilio sends POST here without auth
+      ];
+
+      if (publicPaths.some((p) => pathname.startsWith(p))) return true;
       if (isLoggedIn) return true;
 
       // Redirect to login
