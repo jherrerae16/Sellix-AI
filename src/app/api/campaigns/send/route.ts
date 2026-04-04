@@ -13,6 +13,9 @@ import type { CampaignSendRequest, CampaignRecipient, MessageLog } from "@/lib/t
 
 const MESSAGES_LOG_PATH = join(process.cwd(), "data", "campaigns", "messages.json");
 
+// In-memory fallback for serverless
+let memoryLog: MessageLog[] | null = null;
+
 function replacePlaceholders(
   template: string,
   recipient: CampaignRecipient
@@ -29,6 +32,7 @@ function replacePlaceholders(
 }
 
 async function loadMessageLog(): Promise<MessageLog[]> {
+  if (memoryLog) return memoryLog;
   try {
     const raw = await readFile(MESSAGES_LOG_PATH, "utf-8");
     return JSON.parse(raw);
@@ -38,8 +42,13 @@ async function loadMessageLog(): Promise<MessageLog[]> {
 }
 
 async function saveMessageLog(logs: MessageLog[]): Promise<void> {
-  await mkdir(join(process.cwd(), "data", "campaigns"), { recursive: true });
-  await writeFile(MESSAGES_LOG_PATH, JSON.stringify(logs, null, 2), "utf-8");
+  memoryLog = logs;
+  try {
+    await mkdir(join(process.cwd(), "data", "campaigns"), { recursive: true });
+    await writeFile(MESSAGES_LOG_PATH, JSON.stringify(logs, null, 2), "utf-8");
+  } catch {
+    // Read-only FS (Vercel) — kept in memory
+  }
 }
 
 async function sendEmail(

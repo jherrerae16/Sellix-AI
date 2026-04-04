@@ -11,18 +11,30 @@ import type { Conversation, Order, Payment, ChatMessage, ConversationStage, Conv
 const CRM_DIR = join(process.cwd(), "data", "crm");
 const CONVERSATIONS_PATH = join(CRM_DIR, "conversations.json");
 
+// In-memory fallback for serverless (Vercel)
+let memoryStore: Conversation[] | null = null;
+
 export async function loadConversations(): Promise<Conversation[]> {
+  // Try filesystem first
   try {
     const raw = await readFile(CONVERSATIONS_PATH, "utf-8");
     return JSON.parse(raw);
   } catch {
-    return [];
+    // Return in-memory store if filesystem not available
+    return memoryStore ?? [];
   }
 }
 
 export async function saveConversations(convs: Conversation[]): Promise<void> {
-  await mkdir(CRM_DIR, { recursive: true });
-  await writeFile(CONVERSATIONS_PATH, JSON.stringify(convs, null, 2), "utf-8");
+  // Always update memory
+  memoryStore = convs;
+  // Try filesystem, silently fail on serverless
+  try {
+    await mkdir(CRM_DIR, { recursive: true });
+    await writeFile(CONVERSATIONS_PATH, JSON.stringify(convs, null, 2), "utf-8");
+  } catch {
+    // Read-only filesystem (Vercel) — data lives in memory only
+  }
 }
 
 // ── Demo data generator ────────────────────────────────────────

@@ -95,9 +95,11 @@ function reprocess(): { rowsProcessed: number; customersFound: number } {
 
 // ─── GET: list files ──────────────────────────────────────────
 
+const isServerless = !!process.env.VERCEL;
+
 export async function GET() {
   const manifest = readManifest();
-  return NextResponse.json(manifest);
+  return NextResponse.json({ ...manifest, serverless: isServerless });
 }
 
 // ─── POST: upload new file ────────────────────────────────────
