@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 import {
   getKPIsResumen, getVentasMensuales, getTopProductos,
   getClientesChurn, getVentasCruzadas, getReposicionesPendientes,

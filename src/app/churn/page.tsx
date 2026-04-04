@@ -3,6 +3,8 @@
 // Server Component — tabla filtrable client-side, drawer de detalle
 // =============================================================
 
+export const dynamic = "force-dynamic";
+
 import { getClientesChurn } from "@/lib/dataService";
 import { ChurnCampaignView } from "@/components/campaigns/ChurnCampaignView";
 import { AlertTriangle } from "lucide-react";

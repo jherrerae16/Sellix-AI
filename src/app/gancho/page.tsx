@@ -3,6 +3,8 @@
 // Server Component — mapa de burbujas + tabla de productos
 // =============================================================
 
+export const dynamic = "force-dynamic";
+
 import { getProductosGancho } from "@/lib/dataService";
 import { BubbleGancho } from "@/components/charts/BubbleGancho";
 import { GanchoTable } from "@/components/tables/GanchoTable";

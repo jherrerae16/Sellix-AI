@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 import { getVentasCruzadas } from "@/lib/dataService";
 import { VentaCruzadaTable } from "@/components/tables/VentaCruzadaTable";
 

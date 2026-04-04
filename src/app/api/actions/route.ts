@@ -12,8 +12,12 @@ import type { NextAction } from "@/lib/types";
 const DATA_DIR = join(process.cwd(), "data", "output");
 
 async function loadJSON<T>(filename: string): Promise<T> {
-  const raw = await readFile(join(DATA_DIR, filename), "utf-8");
-  return JSON.parse(raw);
+  try {
+    const raw = await readFile(join(DATA_DIR, filename), "utf-8");
+    return JSON.parse(raw);
+  } catch {
+    return [] as unknown as T;
+  }
 }
 
 interface ChurnRecord {

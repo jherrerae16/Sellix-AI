@@ -3,6 +3,8 @@
 // Server Component — tabla con tabs por estado urgencia
 // =============================================================
 
+export const dynamic = "force-dynamic";
+
 import { getReposicionesPendientes } from "@/lib/dataService";
 import { ReposicionCampaignView } from "@/components/campaigns/ReposicionCampaignView";
 import { RefreshCcw } from "lucide-react";

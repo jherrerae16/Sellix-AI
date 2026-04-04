@@ -3,6 +3,8 @@
 // Server Component — scatter plot + tabla de clientes por segmento
 // =============================================================
 
+export const dynamic = "force-dynamic";
+
 import { getClientesRFM } from "@/lib/dataService";
 import { ScatterRFM } from "@/components/charts/ScatterRFM";
 import { VIPTable } from "@/components/tables/VIPTable";
