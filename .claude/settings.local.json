@@ -7,7 +7,16 @@
       "Read(//private/tmp/**)",
       "Bash(node -e \"const b=require\\('bcryptjs'\\); b.hash\\('sellix2025',10\\).then\\(h => { console.log\\(h\\); require\\('fs'\\).readFileSync\\('/Users/jdh/Desktop/SellixAI-MVP/.env.local','utf8'\\).split\\('\\\\n'\\).forEach\\(l => { if\\(l.startsWith\\('APP_PASSWORD_HASH'\\)\\) console.log\\('stored:', l\\); }\\); }\\)\")",
       "Bash(node -e ':*)",
-      "Bash(node -e \"console.log\\(require\\('/Users/jdh/Desktop/SellixAI-MVP/node_modules/tailwindcss/package.json'\\).version\\)\")"
+      "Bash(node -e \"console.log\\(require\\('/Users/jdh/Desktop/SellixAI-MVP/node_modules/tailwindcss/package.json'\\).version\\)\")",
+      "Bash(md5 src/lib/etl.ts)",
+      "Bash(md5)",
+      "Bash(grep -E \"\\\\.env\\\\.local$|\\\\.xlsx$|data/uploads/\")",
+      "Bash(npm install:*)",
+      "Bash(git stash:*)",
+      "Bash(git pull:*)",
+      "Bash(mkdir -p /Users/jdh/Desktop/SellixAI-MVP/src/app/api/actions)",
+      "Bash(mkdir -p /Users/jdh/Desktop/SellixAI-MVP/src/app/acciones)",
+      "Bash(mkdir -p /Users/jdh/Desktop/SellixAI-MVP/src/app/api/copilot)"
     ]
   }
 }

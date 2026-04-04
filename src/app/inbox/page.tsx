@@ -12,9 +12,9 @@ import {
 } from "lucide-react";
 import type { Conversation, CRMSummary, ConversationStage, ConversationStatus } from "@/lib/types";
 import { formatCOP } from "@/lib/formatters";
-import { ChatList } from "./ChatList";
-import { Funnel } from "./Funnel";
-import { ChatDetail } from "./ChatDetail";
+import { ChatList } from "@/components/inbox/ChatList";
+import { Funnel } from "@/components/inbox/Funnel";
+import { ChatDetail } from "@/components/inbox/ChatDetail";
 
 type Tab = "chats" | "embudo";
 
