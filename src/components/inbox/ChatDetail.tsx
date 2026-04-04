@@ -63,7 +63,10 @@ export function ChatDetail({ conversation: conv, onAction }: ChatDetailProps) {
           </div>
 
           {/* Stage selector */}
-          <div className="relative">
+          <div className="relative flex items-center gap-2">
+            <span className="text-[10px] text-gray-400 flex items-center gap-0.5" title="El embudo se actualiza automáticamente según la conversación">
+              <Bot className="w-3 h-3" />auto
+            </span>
             <button
               onClick={() => setShowStageMenu(!showStageMenu)}
               className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold ${stageInfo.color}`}

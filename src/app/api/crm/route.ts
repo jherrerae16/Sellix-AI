@@ -6,6 +6,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { loadConversations, saveConversations, generateDemoData } from "@/lib/crmData";
+import { applyFunnelRules } from "@/lib/funnelEngine";
 import type { Conversation, ChatMessage, Order, Payment } from "@/lib/types";
 
 export async function GET() {
@@ -79,8 +80,22 @@ export async function PUT(request: NextRequest) {
         conv.messages.push(msg);
         conv.lastMessageAt = msg.timestamp;
         conv.unread = 0;
-        if (conv.status === "no_respondido") conv.status = "activo";
-        if (conv.stage === "lead") conv.stage = "seguimiento";
+        break;
+      }
+
+      // Simulates incoming WhatsApp message (for demo/testing)
+      // In production this comes from /api/whatsapp/webhook
+      case "receive_message": {
+        const inMsg: ChatMessage = {
+          id: `msg_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+          timestamp: new Date().toISOString(),
+          from: "cliente",
+          text: data.text,
+          type: data.type || "text",
+        };
+        conv.messages.push(inMsg);
+        conv.lastMessageAt = inMsg.timestamp;
+        conv.unread += 1;
         break;
       }
 
@@ -97,8 +112,7 @@ export async function PUT(request: NextRequest) {
           updatedAt: new Date().toISOString(),
         };
         conv.order = order;
-        conv.stage = "potencial";
-        conv.tags = [...new Set([...conv.tags, "pedido"])];
+        // Stage updated by funnel engine below
 
         // Add system message
         const orderMsg: ChatMessage = {
@@ -130,9 +144,7 @@ export async function PUT(request: NextRequest) {
         };
         conv.order.payment = payment;
         conv.order.status = "confirmado";
-        conv.status = "pendiente_pago";
-        conv.stage = "venta";
-        conv.tags = [...new Set([...conv.tags, "pago_pendiente"])];
+        // Stage/status updated by funnel engine below
 
         const payMsg: ChatMessage = {
           id: `msg_${Date.now()}_pay`,
@@ -154,9 +166,7 @@ export async function PUT(request: NextRequest) {
         conv.order.payment.method = data.method || "Nequi";
         conv.order.payment.paidAt = new Date().toISOString();
         conv.order.status = "pagado";
-        conv.status = "activo";
-        conv.tags = conv.tags.filter((t: string) => t !== "pago_pendiente");
-        conv.tags = [...new Set([...conv.tags, "pagado"])];
+        // Stage/status/tags updated by funnel engine below
 
         const confirmMsg: ChatMessage = {
           id: `msg_${Date.now()}_conf`,
@@ -173,9 +183,7 @@ export async function PUT(request: NextRequest) {
       case "mark_delivered": {
         if (conv.order) {
           conv.order.status = "entregado";
-          conv.stage = "postventa";
-          conv.status = "postventa";
-          conv.tags = [...new Set([...conv.tags, "entregado"])];
+          // Stage/status/tags updated by funnel engine below
 
           const deliverMsg: ChatMessage = {
             id: `msg_${Date.now()}_del`,
@@ -205,10 +213,22 @@ export async function PUT(request: NextRequest) {
     }
 
     conv.order && (conv.order.updatedAt = new Date().toISOString());
+
+    // ── Auto funnel engine: evaluate and update stage/status ──
+    const isManualStageChange = action === "update_stage";
+    const funnelResult = applyFunnelRules(conv, isManualStageChange);
+
     convs[idx] = conv;
     await saveConversations(convs);
 
-    return NextResponse.json({ success: true, conversation: conv });
+    return NextResponse.json({
+      success: true,
+      conversation: conv,
+      funnel: {
+        auto_updated: funnelResult.changed,
+        reason: funnelResult.reason,
+      },
+    });
   } catch (err) {
     return NextResponse.json(
       { error: err instanceof Error ? err.message : "Error" },
