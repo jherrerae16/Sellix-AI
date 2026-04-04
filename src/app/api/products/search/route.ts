@@ -1,10 +1,11 @@
 // =============================================================
 // Sellix AI — Búsqueda de productos con PRECIOS REALES
-// Lee precios del catálogo generado desde el Excel de ventas
-// y genera comparación con competencia (+10-25% markup)
+// Nuestros precios: del Excel de ventas
+// Competencia: búsqueda en Google via Gemini Search Grounding
 // =============================================================
 
 import { NextRequest, NextResponse } from "next/server";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 import { readFile } from "fs/promises";
 import { join } from "path";
 import type { ProductPrice } from "@/lib/types";
@@ -17,79 +18,60 @@ interface CatalogEntry {
   precio_unidad: number;
   precio_caja: number;
   transacciones: number;
-  unidades_vendidas: number;
-  ingreso_total: number;
 }
 
-// Deterministic random from product code (so prices don't change on each request)
-function seededRandom(seed: string): number {
-  let h = 0;
-  for (let i = 0; i < seed.length; i++) {
-    h = ((h << 5) - h + seed.charCodeAt(i)) | 0;
+interface CompetitorResult {
+  farmacia: string;
+  producto: string;
+  precio: number;
+  presentacion: string;
+}
+
+// ── Cache de precios de competencia (evita buscar lo mismo dos veces) ──
+const priceCache = new Map<string, { data: CompetitorResult[]; timestamp: number }>();
+const CACHE_TTL = 1000 * 60 * 60; // 1 hora
+
+async function searchCompetitorPrices(productName: string): Promise<CompetitorResult[]> {
+  const cacheKey = productName.toLowerCase().trim();
+  const cached = priceCache.get(cacheKey);
+  if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
+    return cached.data;
   }
-  return Math.abs(h % 10000) / 10000;
-}
 
-const COMPETITOR_NAMES = [
-  "Droguería Cruz Verde",
-  "Farmatodo",
-  "Droguería Alemana",
-  "La Rebaja",
-];
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) return [];
 
-function generateCompetitors(ourPrice: number, codigo: string) {
-  const r1 = seededRandom(codigo + "c1");
-  const r2 = seededRandom(codigo + "c2");
-  const r3 = seededRandom(codigo + "c3");
-
-  // Pick 2 different competitors
-  const idx1 = Math.floor(r1 * COMPETITOR_NAMES.length);
-  let idx2 = Math.floor(r2 * COMPETITOR_NAMES.length);
-  if (idx2 === idx1) idx2 = (idx2 + 1) % COMPETITOR_NAMES.length;
-
-  const competitors = [
-    {
-      nombre: COMPETITOR_NAMES[idx1],
-      markup: 0.10 + r1 * 0.18, // 10-28% more expensive
-    },
-    {
-      nombre: COMPETITOR_NAMES[idx2],
-      markup: 0.08 + r2 * 0.22, // 8-30% more expensive
-    },
-  ];
-
-  // 50% chance of a third competitor
-  if (r3 > 0.5) {
-    let idx3 = Math.floor(r3 * COMPETITOR_NAMES.length);
-    if (idx3 === idx1 || idx3 === idx2) idx3 = (idx3 + 2) % COMPETITOR_NAMES.length;
-    competitors.push({
-      nombre: COMPETITOR_NAMES[idx3],
-      markup: 0.05 + r3 * 0.25,
+  try {
+    const genAI = new GoogleGenerativeAI(apiKey);
+    const model = genAI.getGenerativeModel({
+      model: "gemini-2.5-flash",
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      tools: [{ googleSearch: {} } as any],
     });
-  }
 
-  return competitors.map((c) => {
-    const precio = Math.round(ourPrice * (1 + c.markup));
-    // Round to nearest 50 for realism
-    const precioRounded = Math.round(precio / 50) * 50;
-    return {
-      nombre: c.nombre,
-      precio: precioRounded,
-      diferencia_pct: Math.round(c.markup * 100),
-    };
-  });
+    const prompt = `Busca en Google los precios actuales en pesos colombianos (COP) del medicamento "${productName}" en farmacias de Colombia: Cruz Verde, Farmatodo, La Rebaja, Olímpica. Incluye cualquier presentación que encuentres. Responde SOLO con JSON válido sin markdown ni backticks, con este formato exacto: [{"farmacia":"nombre","producto":"nombre completo","precio":numero_entero,"presentacion":"descripción"}]. Si no encuentras precio para una farmacia, omítela.`;
+
+    const result = await model.generateContent(prompt);
+    const text = result.response.text().replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
+    const parsed: CompetitorResult[] = JSON.parse(text);
+
+    // Cache the result
+    priceCache.set(cacheKey, { data: parsed, timestamp: Date.now() });
+    return parsed;
+  } catch {
+    return [];
+  }
 }
 
 function categorize(nombre: string): string {
   const n = nombre.toUpperCase();
-  if (n.includes("TABLETA") || n.includes("TBS") || n.includes("TAB") || n.includes("CAPSULA") || n.includes("COMP")) return "Tabletas / Cápsulas";
+  if (n.includes("TABLETA") || n.includes("TBS") || n.includes("TAB") || n.includes("CAPSULA")) return "Tabletas / Cápsulas";
   if (n.includes("JARABE") || n.includes("SUSPENSION") || n.includes("SOLUCION")) return "Jarabes / Soluciones";
-  if (n.includes("CREMA") || n.includes("GEL") || n.includes("POMADA") || n.includes("UNGÜENTO")) return "Cremas / Geles";
-  if (n.includes("GOTAS") || n.includes("SPRAY") || n.includes("INHALADOR")) return "Gotas / Sprays";
+  if (n.includes("CREMA") || n.includes("GEL") || n.includes("POMADA")) return "Cremas / Geles";
+  if (n.includes("GOTAS") || n.includes("SPRAY")) return "Gotas / Sprays";
   if (n.includes("INYECT") || n.includes("AMPOLLA") || n.includes("JERINGA")) return "Inyectables";
-  if (n.includes("VITAMINA") || n.includes("OMEGA") || n.includes("CALCIO") || n.includes("COLAGENO")) return "Suplementos";
-  if (n.includes("VENDA") || n.includes("GASA") || n.includes("GUANTE") || n.includes("TAPABOCA")) return "Dispositivos médicos";
-  if (n.includes("SHAMPO") || n.includes("JABON") || n.includes("BLOQUEADOR")) return "Cuidado personal";
+  if (n.includes("VITAMINA") || n.includes("OMEGA") || n.includes("CALCIO")) return "Suplementos";
+  if (n.includes("VENDA") || n.includes("GASA") || n.includes("GUANTE")) return "Dispositivos médicos";
   return "Medicamentos generales";
 }
 
@@ -97,56 +79,104 @@ export async function GET(request: NextRequest) {
   try {
     const url = new URL(request.url);
     const query = url.searchParams.get("q")?.toLowerCase() || "";
-    const limit = parseInt(url.searchParams.get("limit") || "20");
-    const priceType = url.searchParams.get("tipo") || "unidad"; // "unidad" or "caja"
+    const limit = parseInt(url.searchParams.get("limit") || "10");
+    const searchOnline = url.searchParams.get("online") !== "false";
 
     if (query.length < 2) {
-      return NextResponse.json({ results: [], total: 0 });
+      return NextResponse.json({ results: [], total: 0, source: "catalog" });
     }
 
+    // 1. Search our catalog
     const raw = await readFile(CATALOG_PATH, "utf-8");
     const catalog: CatalogEntry[] = JSON.parse(raw);
 
-    // Search by name (support multiple words)
     const words = query.split(/\s+/).filter(Boolean);
     const matches = catalog.filter((p) => {
       const nombre = p.nombre.toLowerCase();
       return words.every((w) => nombre.includes(w));
     });
 
-    const results: ProductPrice[] = matches.slice(0, limit).map((p) => {
-      // Use the requested price type
-      const nuestroPrecio = priceType === "caja" && p.precio_caja > 0
-        ? p.precio_caja
-        : p.precio_unidad;
+    // Sort by most transactions (popular = relevant)
+    matches.sort((a, b) => b.transacciones - a.transacciones);
+    const topMatches = matches.slice(0, limit);
 
-      const competidores = generateCompetitors(nuestroPrecio, p.codigo);
-      const maxComp = Math.max(...competidores.map((c) => c.precio));
+    // 2. Search competitor prices via Gemini (for the top product only, to save API calls)
+    let competitorPrices: CompetitorResult[] = [];
+    if (searchOnline && topMatches.length > 0) {
+      // Use a simplified product name for better search results
+      const searchName = topMatches[0].nombre
+        .replace(/\b(IC|LP|MK|GF|PC|TBS|UDS|ICOM)\b/gi, "")
+        .replace(/\s+/g, " ")
+        .trim();
+      competitorPrices = await searchCompetitorPrices(searchName);
+    }
+
+    // 3. Build results
+    const results: ProductPrice[] = topMatches.map((p) => {
+      // Match competitor prices to this product
+      const prodWords = p.nombre.toLowerCase().split(/\s+/);
+      const relevantComps = competitorPrices.filter((c) => {
+        // Check if competitor product is similar to ours
+        const compWords = c.producto.toLowerCase().split(/\s+/);
+        const commonWords = prodWords.filter((w) =>
+          w.length > 3 && compWords.some((cw) => cw.includes(w) || w.includes(cw))
+        );
+        return commonWords.length >= 2;
+      });
+
+      // Dedupe by farmacia (keep cheapest per pharmacy)
+      const byFarmacia = new Map<string, CompetitorResult>();
+      for (const comp of relevantComps) {
+        const existing = byFarmacia.get(comp.farmacia);
+        if (!existing || comp.precio < existing.precio) {
+          byFarmacia.set(comp.farmacia, comp);
+        }
+      }
+
+      const competidores = Array.from(byFarmacia.values())
+        .filter((c) => c.precio > 0)
+        .map((c) => {
+          const diff = p.precio_caja > 0
+            ? Math.round(((c.precio - p.precio_caja) / p.precio_caja) * 100)
+            : 0;
+          return {
+            nombre: c.farmacia,
+            precio: c.precio,
+            diferencia_pct: diff,
+            presentacion: c.presentacion,
+            fuente: "google" as const,
+          };
+        })
+        .sort((a, b) => a.precio - b.precio);
+
+      const nuestroPrecio = p.precio_caja > 0 ? p.precio_caja : p.precio_unidad;
+      const maxComp = competidores.length > 0 ? Math.max(...competidores.map((c) => c.precio)) : 0;
+      const ahorro = maxComp > nuestroPrecio ? maxComp - nuestroPrecio : 0;
 
       return {
         codigo: p.codigo,
         nombre: p.nombre,
         precio_nuestro: nuestroPrecio,
-        competidores,
-        ahorro_max: maxComp - nuestroPrecio,
-        ahorro_max_pct: maxComp > 0 ? Math.round(((maxComp - nuestroPrecio) / maxComp) * 100) : 0,
-        categoria: categorize(p.nombre),
-        // Extra real data
         precio_unidad: p.precio_unidad,
         precio_caja: p.precio_caja,
         transacciones: p.transacciones,
+        competidores,
+        ahorro_max: ahorro,
+        ahorro_max_pct: maxComp > 0 ? Math.round((ahorro / maxComp) * 100) : 0,
+        categoria: categorize(p.nombre),
       };
     });
 
-    // Sort: most transactions first (popular products = more relevant)
-    results.sort((a, b) => ((b as unknown as Record<string, number>).transacciones || 0) - ((a as unknown as Record<string, number>).transacciones || 0));
-
-    return NextResponse.json({ results, total: matches.length });
+    return NextResponse.json({
+      results,
+      total: matches.length,
+      source: competitorPrices.length > 0 ? "google" : "catalog",
+      competitor_count: competitorPrices.length,
+    });
   } catch (err) {
-    // If catalog doesn't exist, hint to generate it
     if ((err as NodeJS.ErrnoException).code === "ENOENT") {
       return NextResponse.json({
-        error: "Catálogo de precios no generado. Suba un archivo de ventas y ejecute POST /api/products/generate",
+        error: "Catálogo no generado. Suba ventas y ejecute POST /api/products/generate",
         results: [],
         total: 0,
       });

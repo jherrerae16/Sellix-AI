@@ -250,6 +250,8 @@ export interface ProductPrice {
     nombre: string;
     precio: number;
     diferencia_pct: number;
+    presentacion?: string;
+    fuente?: "google" | "estimado";
   }[];
   ahorro_max: number;
   ahorro_max_pct: number;

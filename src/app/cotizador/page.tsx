@@ -74,22 +74,39 @@ function PriceCard({ product, onSend }: { product: ProductPrice; onSend: (p: Pro
         </div>
 
         {/* Competitors */}
-        {product.competidores.map((comp) => (
-          <div key={comp.nombre} className="flex items-center justify-between p-3 bg-gray-50 rounded-xl">
+        {product.competidores.length > 0 ? product.competidores.map((comp, i) => (
+          <div key={comp.nombre + i} className="flex items-center justify-between p-3 bg-gray-50 rounded-xl">
             <div className="flex items-center gap-2">
               <Tag className="w-4 h-4 text-gray-400" />
               <div>
                 <p className="text-sm font-medium text-gray-700">{comp.nombre}</p>
-                <p className="text-xs text-red-500">+{comp.diferencia_pct}% más caro</p>
+                <div className="flex items-center gap-2">
+                  {comp.presentacion && (
+                    <span className="text-xs text-gray-400">{comp.presentacion}</span>
+                  )}
+                  {comp.diferencia_pct > 0 && (
+                    <span className="text-xs text-red-500">+{comp.diferencia_pct}%</span>
+                  )}
+                  {comp.diferencia_pct < 0 && (
+                    <span className="text-xs text-green-600">{comp.diferencia_pct}%</span>
+                  )}
+                </div>
               </div>
             </div>
             <div className="text-right">
-              <p className="text-sm font-semibold text-gray-600 line-through decoration-red-400">
+              <p className={`text-sm font-semibold ${comp.diferencia_pct > 0 ? "text-gray-500 line-through decoration-red-400" : "text-green-700"}`}>
                 {formatCOP(comp.precio)}
               </p>
+              {comp.fuente === "google" && (
+                <span className="text-[10px] text-emerald-600 font-medium">precio real</span>
+              )}
             </div>
           </div>
-        ))}
+        )) : (
+          <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl">
+            <p className="text-xs text-amber-700">Buscando precios de la competencia...</p>
+          </div>
+        )}
 
         {/* Savings summary */}
         <div className="flex items-center gap-2 pt-2">
