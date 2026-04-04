@@ -31,8 +31,8 @@ data/crm/
 # Campaign logs — registros de mensajes enviados
 data/campaigns/
 
-# Output data — JSONs con datos de clientes (PII)
-data/output/
+# Output data — JSONs generados (se incluyen en repo para deploy)
+# data/output/ — YES tracked (needed for Vercel serverless)
 public/data/*.json
 
 # Vercel

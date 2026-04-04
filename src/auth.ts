@@ -6,4 +6,7 @@
 import NextAuth from "next-auth";
 import { authConfig } from "@/lib/authConfig";
 
-export const { handlers, auth, signIn, signOut } = NextAuth(authConfig);
+export const { handlers, auth, signIn, signOut } = NextAuth({
+  ...authConfig,
+  trustHost: true, // Required for Vercel (accepts *.vercel.app domain)
+});
