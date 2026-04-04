@@ -258,6 +258,83 @@ export interface ProductPrice {
   categoria: string;
 }
 
+// =============================================================
+// CRM WhatsApp — Conversaciones, Pedidos, Pagos
+// =============================================================
+
+export type ConversationStage = "lead" | "seguimiento" | "potencial" | "venta" | "postventa";
+export type ConversationStatus = "no_respondido" | "activo" | "pendiente_pago" | "cerrado" | "postventa";
+export type OrderStatus = "borrador" | "confirmado" | "pagado" | "enviado" | "entregado" | "cancelado";
+export type PaymentStatus = "pendiente" | "pagado" | "fallido" | "expirado";
+
+export interface ChatMessage {
+  id: string;
+  timestamp: string;
+  from: "cliente" | "agente" | "sistema";
+  text: string;
+  type: "text" | "image" | "payment_link" | "auto_followup";
+}
+
+export interface Conversation {
+  id: string;
+  cliente: {
+    nombre: string;
+    telefono: string;
+    cedula: string | null;
+    avatar?: string;
+  };
+  stage: ConversationStage;
+  status: ConversationStatus;
+  priority: "alta" | "media" | "baja";
+  tags: string[];
+  notes: string;
+  messages: ChatMessage[];
+  order: Order | null;
+  lastMessageAt: string;
+  createdAt: string;
+  unread: number;
+  assignedTo: string | null;
+}
+
+export interface OrderItem {
+  codigo: string;
+  nombre: string;
+  cantidad: number;
+  precio_unidad: number;
+  subtotal: number;
+}
+
+export interface Order {
+  id: string;
+  conversationId: string;
+  items: OrderItem[];
+  total: number;
+  status: OrderStatus;
+  payment: Payment | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface Payment {
+  id: string;
+  orderId: string;
+  amount: number;
+  status: PaymentStatus;
+  link: string;
+  method: string | null;
+  paidAt: string | null;
+  createdAt: string;
+}
+
+export interface CRMSummary {
+  total_conversaciones: number;
+  no_respondidos: number;
+  pendientes_pago: number;
+  ventas_hoy: number;
+  ingresos_hoy: number;
+  por_etapa: Record<ConversationStage, number>;
+}
+
 export interface CopilotData {
   type: "table" | "kpi" | "actions" | "campaign_preview";
   title: string;
