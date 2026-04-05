@@ -268,11 +268,39 @@ export function ChatDetail({ conversation: conv, onAction }: ChatDetailProps) {
           )}
 
           {conv.order?.status === "entregado" && (
-            <div className="flex items-center gap-2 p-2 bg-emerald-50 rounded-lg">
-              <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-              <p className="text-xs text-emerald-700 font-medium">Pedido entregado</p>
+            <div className="space-y-2">
+              <div className="flex items-center gap-2 p-2 bg-emerald-50 rounded-lg">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                <p className="text-xs text-emerald-700 font-medium">Pedido entregado</p>
+              </div>
+              <button
+                onClick={() => onAction(conv.id, "reset_conversation")}
+                className="w-full py-2 text-xs font-medium text-brand-blue bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors"
+              >
+                Nuevo pedido (reiniciar ciclo)
+              </button>
             </div>
           )}
+
+          {/* Danger zone */}
+          <div className="pt-3 border-t border-gray-200">
+            <div className="flex gap-2">
+              {(conv.stage !== "lead" || conv.order) && (
+                <button
+                  onClick={() => { if (confirm("¿Reiniciar conversación? Se borrará el pedido actual.")) onAction(conv.id, "reset_conversation"); }}
+                  className="flex-1 py-2 text-xs font-medium text-orange-600 bg-orange-50 rounded-lg hover:bg-orange-100 transition-colors"
+                >
+                  Reiniciar
+                </button>
+              )}
+              <button
+                onClick={() => { if (confirm("¿Eliminar esta conversación permanentemente?")) onAction(conv.id, "delete_conversation"); }}
+                className="flex-1 py-2 text-xs font-medium text-red-600 bg-red-50 rounded-lg hover:bg-red-100 transition-colors"
+              >
+                Eliminar
+              </button>
+            </div>
+          </div>
         </div>
       </div>
     </div>

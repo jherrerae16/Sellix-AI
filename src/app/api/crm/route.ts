@@ -244,6 +244,34 @@ export async function PUT(request: NextRequest) {
         break;
       }
 
+      // ── Reset conversation (new order cycle) ────────────
+      case "reset_conversation": {
+        conv.stage = "lead";
+        conv.status = "no_respondido";
+        conv.order = null;
+        conv.tags = ["whatsapp"];
+        conv.unread = 0;
+        conv.priority = "media";
+
+        const resetMsg: ChatMessage = {
+          id: `msg_${Date.now()}_reset`,
+          timestamp: new Date().toISOString(),
+          from: "sistema",
+          text: "🔄 Conversación reiniciada — lista para nuevo pedido",
+          type: "text",
+        };
+        conv.messages.push(resetMsg);
+        conv.lastMessageAt = resetMsg.timestamp;
+        break;
+      }
+
+      // ── Delete conversation ────────────────────────────────
+      case "delete_conversation": {
+        convs.splice(idx, 1);
+        await saveConversations(convs);
+        return NextResponse.json({ success: true, deleted: true });
+      }
+
       default:
         return NextResponse.json({ error: `Acción desconocida: ${action}` }, { status: 400 });
     }

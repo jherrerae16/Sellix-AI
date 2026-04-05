@@ -10,7 +10,7 @@ import {
   MessageCircle, Filter, Loader2, BarChart3,
   Users, DollarSign, AlertCircle, Clock,
 } from "lucide-react";
-import type { Conversation, CRMSummary, ConversationStage, ConversationStatus } from "@/lib/types";
+import type { Conversation, CRMSummary } from "@/lib/types";
 import { formatCOP } from "@/lib/formatters";
 import { ChatList } from "@/components/inbox/ChatList";
 import { Funnel } from "@/components/inbox/Funnel";
@@ -50,7 +50,11 @@ export default function InboxPage() {
     });
     if (res.ok) {
       const result = await res.json();
-      if (result.conversation) {
+      if (result.deleted) {
+        // Remove from local state
+        setConvs((prev) => prev.filter((c) => c.id !== id));
+        if (selectedId === id) setSelectedId(null);
+      } else if (result.conversation) {
         // Update locally without refetching
         setConvs((prev) =>
           prev.map((c) => (c.id === result.conversation.id ? result.conversation : c))
