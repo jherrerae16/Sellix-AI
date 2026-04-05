@@ -4,6 +4,8 @@
 // para generar acciones priorizadas con impacto estimado
 // =============================================================
 
+export const dynamic = "force-dynamic";
+
 import { NextResponse } from "next/server";
 import { readFile } from "fs/promises";
 import { join } from "path";

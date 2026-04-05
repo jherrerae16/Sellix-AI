@@ -9,6 +9,8 @@ import { loadConversations, saveConversations } from "@/lib/crmStore";
 import { applyFunnelRules } from "@/lib/funnelEngine";
 import type { Conversation, ChatMessage, Order, Payment } from "@/lib/types";
 
+export const dynamic = "force-dynamic";
+
 export async function GET() {
   const convs = await loadConversations();
   // No demo data — conversations come from real WhatsApp webhook only
