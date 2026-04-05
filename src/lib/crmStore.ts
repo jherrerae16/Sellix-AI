@@ -1,9 +1,9 @@
 // =============================================================
 // Sellix AI — CRM Storage
-// Uses Upstash Redis (via REDIS_URL) on Vercel, filesystem locally
+// Uses Redis (via REDIS_URL) on Vercel, filesystem locally
 // =============================================================
 
-import { Redis } from "@upstash/redis";
+import IORedis from "ioredis";
 import { readFile, writeFile, mkdir } from "fs/promises";
 import { join } from "path";
 import type { Conversation } from "./types";
@@ -12,28 +12,20 @@ const CRM_KEY = "sellix:conversations";
 const CRM_DIR = join(process.cwd(), "data", "crm");
 const CRM_FILE = join(CRM_DIR, "conversations.json");
 
-function getRedis(): Redis | null {
+let redisClient: IORedis | null = null;
+
+function getRedis(): IORedis | null {
   const url = process.env.REDIS_URL;
   if (!url) return null;
-  try {
-    return new Redis({ url, token: "" });
-  } catch {
-    // REDIS_URL might be a full redis:// URL, try parsing it differently
-  }
 
-  // Try as regular Redis URL (redis://default:token@host:port)
-  // Upstash Redis constructor needs {url, token} for REST API
-  // or we can use the REDIS_URL directly if it's a REST URL
-  try {
-    // If it starts with https://, it's a REST URL
-    if (url.startsWith("https://")) {
-      return new Redis({ url, token: process.env.REDIS_TOKEN || "" });
-    }
-  } catch {
-    return null;
+  if (!redisClient) {
+    redisClient = new IORedis(url, {
+      maxRetriesPerRequest: 1,
+      connectTimeout: 5000,
+      lazyConnect: true,
+    });
   }
-
-  return null;
+  return redisClient;
 }
 
 export async function loadConversations(): Promise<Conversation[]> {
@@ -41,8 +33,10 @@ export async function loadConversations(): Promise<Conversation[]> {
 
   if (redis) {
     try {
-      const data = await redis.get<Conversation[]>(CRM_KEY);
-      return data ?? [];
+      await redis.connect().catch(() => {}); // Already connected is OK
+      const data = await redis.get(CRM_KEY);
+      if (data) return JSON.parse(data);
+      return [];
     } catch (err) {
       console.error("Redis read error:", err);
     }
@@ -62,6 +56,7 @@ export async function saveConversations(convs: Conversation[]): Promise<void> {
 
   if (redis) {
     try {
+      await redis.connect().catch(() => {});
       await redis.set(CRM_KEY, JSON.stringify(convs));
       return;
     } catch (err) {
