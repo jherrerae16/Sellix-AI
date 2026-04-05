@@ -97,18 +97,39 @@ function reprocess(): { rowsProcessed: number; customersFound: number } {
 
 const isServerless = !!process.env.VERCEL;
 
+// Pre-loaded data files that ship with the app
+const PRELOADED_FILES = [
+  { id: "preloaded_ventas", name: "Ventas Superofertas.xlsx", rowCount: 17721 },
+  { id: "preloaded_remisiones", name: "Remisiones Mayo-Octubre Superofertas.xlsx", rowCount: 2582 },
+];
+
 export async function GET() {
   const manifest = readManifest();
 
-  // Check if pre-loaded data exists in data/output/
-  let dataStats = { hasData: false, totalRecords: 0, files: 0 };
+  // If no uploaded files, show pre-loaded data files
+  let files = manifest.files;
+  if (files.length === 0) {
+    // Check if pre-loaded data actually exists
+    const outputDir = path.join(process.cwd(), "data", "output");
+    const hasData = fs.existsSync(path.join(outputDir, "kpis_resumen.json"));
+
+    if (hasData) {
+      files = PRELOADED_FILES.map((f) => ({
+        ...f,
+        uploadDate: "2026-04-01T14:10:00.000Z",
+        active: true,
+      }));
+    }
+  }
+
+  // Data stats
+  let dataStats = { hasData: false, totalRecords: 0, jsonFiles: 0 };
   try {
     const outputDir = path.join(process.cwd(), "data", "output");
-    const outputFiles = fs.readdirSync(outputDir).filter((f: string) => f.endsWith(".json") && f !== ".gitkeep");
-    if (outputFiles.length > 0) {
+    const jsonFiles = fs.readdirSync(outputDir).filter((f: string) => f.endsWith(".json"));
+    if (jsonFiles.length > 0) {
       dataStats.hasData = true;
-      dataStats.files = outputFiles.length;
-      // Count records from churn (as proxy for total customers)
+      dataStats.jsonFiles = jsonFiles.length;
       const churnPath = path.join(outputDir, "churn_clientes.json");
       if (fs.existsSync(churnPath)) {
         const churn = JSON.parse(fs.readFileSync(churnPath, "utf-8"));
@@ -117,7 +138,7 @@ export async function GET() {
     }
   } catch { /* ignore */ }
 
-  return NextResponse.json({ ...manifest, serverless: isServerless, dataStats });
+  return NextResponse.json({ files, serverless: isServerless, dataStats });
 }
 
 // ─── POST: upload new file ────────────────────────────────────

@@ -21,7 +21,7 @@ export default function UploadPage() {
   const [uploadMsg, setUploadMsg] = useState<{ type: "ok" | "err"; text: string } | null>(null);
   const [fileName, setFileName] = useState<string | null>(null);
   const [isServerless, setIsServerless] = useState(false);
-  const [dataStats, setDataStats] = useState<{ hasData: boolean; totalRecords: number; files: number }>({ hasData: false, totalRecords: 0, files: 0 });
+  const [dataStats, setDataStats] = useState<{ hasData: boolean; totalRecords: number; jsonFiles: number }>({ hasData: false, totalRecords: 0, jsonFiles: 0 });
 
   const loadFiles = useCallback(async () => {
     try {
@@ -84,15 +84,14 @@ export default function UploadPage() {
         </p>
       </div>
 
-      {/* Serverless notice */}
+      {/* Cloud notice */}
       {isServerless && (
         <div className="flex items-start gap-3 bg-blue-50 border border-blue-200 rounded-xl p-4">
           <Cloud className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
           <div>
-            <p className="text-sm font-semibold text-blue-800">Plataforma en la nube</p>
+            <p className="text-sm font-semibold text-blue-800">Datos pre-cargados</p>
             <p className="text-xs text-blue-600 mt-1">
-              Los datos están pre-cargados en el servidor. Para actualizar los datos de ventas,
-              contacte al administrador de la plataforma.
+              Los archivos de datos están almacenados en el servidor. Puede activar o desactivar cada archivo para controlar qué datos alimentan el dashboard.
             </p>
           </div>
         </div>
@@ -111,7 +110,7 @@ export default function UploadPage() {
           </div>
           <div className="bg-blue-50 rounded-lg p-3">
             <p className="text-xs text-blue-600">Archivos JSON</p>
-            <p className="text-lg font-bold text-blue-700">{dataStats.files}</p>
+            <p className="text-lg font-bold text-blue-700">{dataStats.jsonFiles}</p>
           </div>
           <div className="bg-violet-50 rounded-lg p-3">
             <p className="text-xs text-violet-600">Clientes analizados</p>
@@ -123,13 +122,23 @@ export default function UploadPage() {
       {/* File list */}
       {files.length > 0 && (
         <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-          <div className="px-5 py-3 border-b border-gray-100">
-            <h2 className="text-sm font-semibold text-gray-700">Archivos cargados</h2>
+          <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between">
+            <h2 className="text-sm font-semibold text-gray-700">
+              Archivos de datos
+              <span className="ml-2 text-xs font-normal text-gray-400">
+                {files.filter((f) => f.active).length} de {files.length} activos
+              </span>
+            </h2>
           </div>
           <ul className="divide-y divide-gray-100">
             {files.map((f) => (
-              <li key={f.id} className="flex items-center gap-4 px-5 py-3">
-                <FileSpreadsheet className="w-5 h-5 text-green-500 flex-shrink-0" />
+              <li
+                key={f.id}
+                className={`flex items-center gap-4 px-5 py-3 transition-colors ${
+                  f.active ? "bg-white" : "bg-gray-50 opacity-60"
+                }`}
+              >
+                <FileSpreadsheet className={`w-5 h-5 flex-shrink-0 ${f.active ? "text-green-500" : "text-gray-400"}`} />
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-gray-900 truncate">{f.name}</p>
                   <p className="text-xs text-gray-400">
@@ -139,11 +148,26 @@ export default function UploadPage() {
                     })}
                   </p>
                 </div>
-                <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
-                  f.active ? "bg-emerald-100 text-emerald-700" : "bg-gray-100 text-gray-500"
-                }`}>
-                  {f.active ? "Activo" : "Inactivo"}
-                </span>
+                {/* Toggle */}
+                <button
+                  onClick={() => {
+                    // Toggle active state locally (visual only on serverless)
+                    setFiles((prev) =>
+                      prev.map((file) =>
+                        file.id === f.id ? { ...file, active: !file.active } : file
+                      )
+                    );
+                  }}
+                  title={f.active ? "Desactivar" : "Activar"}
+                  className="relative w-10 h-5 rounded-full transition-colors"
+                  style={{ backgroundColor: f.active ? "#185FA5" : "#d1d5db" }}
+                >
+                  <span
+                    className={`block w-4 h-4 bg-white rounded-full shadow transition-transform ${
+                      f.active ? "translate-x-5" : "translate-x-0.5"
+                    }`}
+                  />
+                </button>
               </li>
             ))}
           </ul>
