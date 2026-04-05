@@ -1,21 +1,42 @@
 // =============================================================
 // Sellix AI — CRM API
-// GET: load conversations (generates demo if empty)
-// PUT: update conversation (stage, status, tags, notes, messages)
+// GET: load conversations from Redis
+// PUT: update conversation + send WhatsApp messages via Twilio
 // =============================================================
 
 import { NextRequest, NextResponse } from "next/server";
 import { loadConversations, saveConversations } from "@/lib/crmStore";
 import { applyFunnelRules } from "@/lib/funnelEngine";
+import twilio from "twilio";
 import type { Conversation, ChatMessage, Order, Payment } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
+// ── Twilio WhatsApp sender ────────────────────────────────────
+
+async function sendWhatsApp(phone: string, message: string): Promise<boolean> {
+  const sid = process.env.TWILIO_ACCOUNT_SID;
+  const token = process.env.TWILIO_AUTH_TOKEN;
+  const from = process.env.TWILIO_WHATSAPP_FROM;
+
+  if (!sid || !token || !from || !phone) return false;
+
+  try {
+    const client = twilio(sid, token);
+    const to = phone.startsWith("whatsapp:") ? phone : `whatsapp:${phone}`;
+    await client.messages.create({ from, to, body: message });
+    return true;
+  } catch (err) {
+    console.error("WhatsApp send error:", err);
+    return false;
+  }
+}
+
+// ── GET ───────────────────────────────────────────────────────
+
 export async function GET() {
   const convs = await loadConversations();
-  // No demo data — conversations come from real WhatsApp webhook only
 
-  // Summary
   const summary = {
     total_conversaciones: convs.length,
     no_respondidos: convs.filter((c) => c.status === "no_respondido").length,
@@ -35,6 +56,8 @@ export async function GET() {
   return NextResponse.json({ conversations: convs, summary });
 }
 
+// ── PUT ───────────────────────────────────────────────────────
+
 export async function PUT(request: NextRequest) {
   try {
     const body = await request.json();
@@ -47,6 +70,8 @@ export async function PUT(request: NextRequest) {
     }
 
     const conv = convs[idx];
+    const phone = conv.cliente.telefono;
+    const nombre = conv.cliente.nombre.split(" ")[0];
 
     switch (action) {
       case "update_stage":
@@ -69,6 +94,7 @@ export async function PUT(request: NextRequest) {
         conv.notes = data.notes;
         break;
 
+      // ── Agent sends message → also sends via WhatsApp ──────
       case "send_message": {
         const msg: ChatMessage = {
           id: `msg_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
@@ -81,39 +107,12 @@ export async function PUT(request: NextRequest) {
         conv.lastMessageAt = msg.timestamp;
         conv.unread = 0;
 
-        // Send via WhatsApp if client has phone number
-        if (conv.cliente.telefono && process.env.TWILIO_ACCOUNT_SID) {
-          try {
-            const baseUrl = process.env.NEXTAUTH_URL || process.env.VERCEL_URL
-              ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000";
-            await fetch(`${baseUrl}/api/whatsapp/send`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ to: conv.cliente.telefono, message: data.text }),
-            });
-          } catch {
-            // WhatsApp send failed — message still saved in CRM
-          }
-        }
+        // Send via WhatsApp
+        await sendWhatsApp(phone, data.text);
         break;
       }
 
-      // Simulates incoming WhatsApp message (for demo/testing)
-      // In production this comes from /api/whatsapp/webhook
-      case "receive_message": {
-        const inMsg: ChatMessage = {
-          id: `msg_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
-          timestamp: new Date().toISOString(),
-          from: "cliente",
-          text: data.text,
-          type: data.type || "text",
-        };
-        conv.messages.push(inMsg);
-        conv.lastMessageAt = inMsg.timestamp;
-        conv.unread += 1;
-        break;
-      }
-
+      // ── Create order ───────────────────────────────────────
       case "create_order": {
         const orderId = `ord_${Date.now()}`;
         const order: Order = {
@@ -127,21 +126,29 @@ export async function PUT(request: NextRequest) {
           updatedAt: new Date().toISOString(),
         };
         conv.order = order;
-        // Stage updated by funnel engine below
 
-        // Add system message
+        const orderText = `📦 Hola ${nombre}! Su pedido ha sido creado:\n\n${
+          order.items.map((i: { cantidad: number; nombre: string; subtotal: number }) =>
+            `• ${i.cantidad}x ${i.nombre} — $${i.subtotal.toLocaleString("es-CO")}`
+          ).join("\n")
+        }\n\n*Total: $${order.total.toLocaleString("es-CO")}*\n\nLe enviaremos el link de pago en un momento.`;
+
         const orderMsg: ChatMessage = {
           id: `msg_${Date.now()}_ord`,
           timestamp: new Date().toISOString(),
           from: "sistema",
-          text: `📦 Pedido creado: ${order.items.length} productos — Total: $${order.total.toLocaleString("es-CO")}`,
+          text: orderText,
           type: "text",
         };
         conv.messages.push(orderMsg);
         conv.lastMessageAt = orderMsg.timestamp;
+
+        // Send order confirmation via WhatsApp
+        await sendWhatsApp(phone, orderText);
         break;
       }
 
+      // ── Generate payment link → send to client ─────────────
       case "generate_payment_link": {
         if (!conv.order) {
           return NextResponse.json({ error: "No hay pedido asociado" }, { status: 400 });
@@ -159,20 +166,25 @@ export async function PUT(request: NextRequest) {
         };
         conv.order.payment = payment;
         conv.order.status = "confirmado";
-        // Stage/status updated by funnel engine below
+
+        const payText = `💳 Hola ${nombre}! Aquí está su link de pago:\n\n*Total: $${payment.amount.toLocaleString("es-CO")}*\n🔗 ${payment.link}\n\nUna vez realice el pago, le confirmaremos su pedido. ¡Gracias!`;
 
         const payMsg: ChatMessage = {
           id: `msg_${Date.now()}_pay`,
           timestamp: new Date().toISOString(),
           from: "sistema",
-          text: `🔗 Link de pago generado: $${payment.amount.toLocaleString("es-CO")}\n${payment.link}`,
+          text: payText,
           type: "payment_link",
         };
         conv.messages.push(payMsg);
         conv.lastMessageAt = payMsg.timestamp;
+
+        // Send payment link via WhatsApp
+        await sendWhatsApp(phone, payText);
         break;
       }
 
+      // ── Confirm payment ────────────────────────────────────
       case "confirm_payment": {
         if (!conv.order?.payment) {
           return NextResponse.json({ error: "No hay pago pendiente" }, { status: 400 });
@@ -181,24 +193,28 @@ export async function PUT(request: NextRequest) {
         conv.order.payment.method = data.method || "Nequi";
         conv.order.payment.paidAt = new Date().toISOString();
         conv.order.status = "pagado";
-        // Stage/status/tags updated by funnel engine below
+
+        const confirmText = `✅ ${nombre}, su pago de *$${conv.order.payment.amount.toLocaleString("es-CO")}* ha sido confirmado.\n\nEstamos preparando su pedido. Le avisaremos cuando salga el envío. 🏍️\n\nDroguería Super Ofertas`;
 
         const confirmMsg: ChatMessage = {
           id: `msg_${Date.now()}_conf`,
           timestamp: new Date().toISOString(),
           from: "sistema",
-          text: `✅ Pago confirmado — $${conv.order.payment.amount.toLocaleString("es-CO")} recibidos via ${conv.order.payment.method}`,
+          text: confirmText,
           type: "text",
         };
         conv.messages.push(confirmMsg);
         conv.lastMessageAt = confirmMsg.timestamp;
+
+        // Send confirmation via WhatsApp
+        await sendWhatsApp(phone, confirmText);
         break;
       }
 
+      // ── Mark as delivered → auto followup ──────────────────
       case "mark_delivered": {
         if (conv.order) {
           conv.order.status = "entregado";
-          // Stage/status/tags updated by funnel engine below
 
           const deliverMsg: ChatMessage = {
             id: `msg_${Date.now()}_del`,
@@ -209,16 +225,21 @@ export async function PUT(request: NextRequest) {
           };
           conv.messages.push(deliverMsg);
 
-          // Auto followup message
+          // Auto followup
+          const followupText = `Hola ${nombre}! 👋 Somos Droguería Super Ofertas.\n\n¿Recibió su pedido correctamente? ¿Llegó todo bien?\n\nSi necesita algo más o quiere hacer otro pedido, responda este mensaje. Estamos para servirle 💊`;
+
           const followup: ChatMessage = {
             id: `msg_${Date.now()}_fu`,
-            timestamp: new Date(Date.now() + 2000).toISOString(),
+            timestamp: new Date(Date.now() + 1000).toISOString(),
             from: "sistema",
-            text: `Hola ${conv.cliente.nombre.split(" ")[0]}! Somos Droguería Super Ofertas. ¿Recibió su pedido correctamente? ¿Necesita algo más? Estamos para servirle 💊`,
+            text: followupText,
             type: "auto_followup",
           };
           conv.messages.push(followup);
           conv.lastMessageAt = followup.timestamp;
+
+          // Send followup via WhatsApp
+          await sendWhatsApp(phone, followupText);
         }
         break;
       }
@@ -229,7 +250,7 @@ export async function PUT(request: NextRequest) {
 
     conv.order && (conv.order.updatedAt = new Date().toISOString());
 
-    // ── Auto funnel engine: evaluate and update stage/status ──
+    // Auto funnel engine
     const isManualStageChange = action === "update_stage";
     const funnelResult = applyFunnelRules(conv, isManualStageChange);
 
