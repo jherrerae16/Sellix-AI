@@ -1,11 +1,5 @@
 // =============================================================
 // Sellix AI — Twilio WhatsApp Webhook
-// Receives incoming WhatsApp messages and creates/updates
-// conversations in the CRM.
-//
-// Configure in Twilio Console:
-// Messaging → Settings → WhatsApp Sandbox
-// "WHEN A MESSAGE COMES IN" → POST https://your-app.vercel.app/api/whatsapp/webhook
 // =============================================================
 
 import { NextRequest, NextResponse } from "next/server";
@@ -14,33 +8,35 @@ import { applyFunnelRules } from "@/lib/funnelEngine";
 import type { Conversation, ChatMessage } from "@/lib/types";
 
 export async function POST(request: NextRequest) {
-  try {
-    // Twilio sends form-encoded data
-    const formData = await request.formData();
-    const from = formData.get("From") as string;        // "whatsapp:+57573000000000"
-    const body = formData.get("Body") as string;         // Message text
-    const profileName = formData.get("ProfileName") as string; // WhatsApp display name
-    const numMedia = parseInt(formData.get("NumMedia") as string || "0");
-    const mediaUrl = formData.get("MediaUrl0") as string | null; // Image URL if sent
+  const debug: string[] = [];
 
-    console.log("WEBHOOK RECEIVED:", { from, body: body?.slice(0, 50), profileName, numMedia });
+  try {
+    const formData = await request.formData();
+    const from = formData.get("From") as string;
+    const body = formData.get("Body") as string;
+    const profileName = formData.get("ProfileName") as string;
+    const numMedia = parseInt(formData.get("NumMedia") as string || "0");
+    const mediaUrl = formData.get("MediaUrl0") as string | null;
+
+    debug.push(`from=${from}, body=${body?.slice(0, 30)}, profile=${profileName}`);
+    debug.push(`KV_REST_API_URL=${process.env.KV_REST_API_URL ? "SET" : "NOT SET"}`);
+    debug.push(`KV_URL=${process.env.KV_URL ? "SET" : "NOT SET"}`);
 
     if (!from) {
-      console.log("WEBHOOK: No 'From' field — ignoring");
+      debug.push("No FROM field");
+      console.log("WEBHOOK DEBUG:", debug.join(" | "));
       return new NextResponse("OK", { status: 200 });
     }
 
-    // Extract phone number (remove "whatsapp:" prefix)
     const phone = from.replace("whatsapp:", "");
+    debug.push(`phone=${phone}`);
 
-    // Load existing conversations
     const convs = await loadConversations();
+    debug.push(`loaded=${convs.length} conversations`);
 
-    // Find existing conversation by phone
     let conv = convs.find((c) => c.cliente.telefono === phone);
 
     if (!conv) {
-      // Create new conversation
       conv = {
         id: `conv_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
         cliente: {
@@ -61,9 +57,11 @@ export async function POST(request: NextRequest) {
         assignedTo: null,
       };
       convs.push(conv);
+      debug.push("NEW conversation created");
+    } else {
+      debug.push("EXISTING conversation found");
     }
 
-    // Add the incoming message
     const msg: ChatMessage = {
       id: `msg_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
       timestamp: new Date().toISOString(),
@@ -76,35 +74,43 @@ export async function POST(request: NextRequest) {
     conv.lastMessageAt = msg.timestamp;
     conv.unread += 1;
 
-    // Run funnel engine
     applyFunnelRules(conv);
 
     await saveConversations(convs);
+    debug.push(`saved=${convs.length} conversations`);
 
-    console.log("WEBHOOK: Message saved for", phone, "- Total convs:", convs.length);
+    console.log("WEBHOOK DEBUG:", debug.join(" | "));
 
-    // Respond with empty TwiML (acknowledge receipt, no auto-reply)
     return new NextResponse(
       '<?xml version="1.0" encoding="UTF-8"?><Response></Response>',
-      {
-        status: 200,
-        headers: { "Content-Type": "text/xml" },
-      }
+      { status: 200, headers: { "Content-Type": "text/xml" } }
     );
   } catch (err) {
-    console.error("Webhook error:", err);
-    return new NextResponse("OK", { status: 200 }); // Always 200 to Twilio
+    debug.push(`ERROR: ${err instanceof Error ? err.message : String(err)}`);
+    console.error("WEBHOOK DEBUG:", debug.join(" | "));
+    return new NextResponse("OK", { status: 200 });
   }
 }
 
-// GET: verification + debug — shows conversation count from KV
 export async function GET() {
-  const convs = await loadConversations();
-  return NextResponse.json({
+  const debug: Record<string, unknown> = {
     status: "WhatsApp webhook active",
-    conversations_stored: convs.length,
-    last_message: convs.length > 0
-      ? convs[convs.length - 1].messages[convs[convs.length - 1].messages.length - 1]?.text?.slice(0, 50)
-      : null,
-  });
+    kv_rest_api_url: process.env.KV_REST_API_URL ? "SET" : "NOT SET",
+    kv_url: process.env.KV_URL ? "SET" : "NOT SET",
+    kv_rest_api_token: process.env.KV_REST_API_TOKEN ? "SET" : "NOT SET",
+  };
+
+  try {
+    const convs = await loadConversations();
+    debug.conversations_stored = convs.length;
+    if (convs.length > 0) {
+      const last = convs[convs.length - 1];
+      debug.last_client = last.cliente.nombre;
+      debug.last_message = last.messages[last.messages.length - 1]?.text?.slice(0, 50);
+    }
+  } catch (err) {
+    debug.load_error = err instanceof Error ? err.message : String(err);
+  }
+
+  return NextResponse.json(debug);
 }
