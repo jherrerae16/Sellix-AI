@@ -2,13 +2,13 @@
 ## Sellix AI
 ### Plataforma de Inteligencia de Ventas para Droguerías y Comercio Farmacéutico
 
-**Versión:** 1.1
+**Versión:** 2.0
 **Fecha:** Abril 2026
 **Autor:** Juan David Herrera
 **Empresa:** Next AI Tech LLC
-**Estado:** Implementado — MVP completo (Fase 1 + Fase 2)
-**Tipo de producto:** SaaS · Analytics · IA Predictiva · Dashboard Comercial
-**Última actualización:** 01/04/2026 — Refleja estado real de implementación
+**Estado:** MVP en producción — https://sellix-ai-mvp.vercel.app
+**Tipo de producto:** SaaS · CRM WhatsApp · Analytics · IA Predictiva
+**Última actualización:** 04/04/2026 — Incluye CRM WhatsApp, Cotizador, Recetas IA, Copiloto
 
 ---
 
@@ -542,27 +542,33 @@ interface ProductoGancho {
 
 | ID | Medida | Implementación |
 |---|---|---|
-| SEC-01 | Autenticación | NextAuth.js v5 con proveedor Credentials + bcryptjs |
+| SEC-01 | Autenticación | NextAuth.js v5 con proveedor Credentials, JWT |
 | SEC-02 | Sesiones JWT | Tokens de 8 horas, cookies HttpOnly + SameSite=lax |
-| SEC-03 | Rate Limiting | 5 intentos fallidos → bloqueo de IP por 15 minutos |
-| SEC-04 | Logging estructurado | JSON a stdout, nunca registra contraseñas ni cédulas |
-| SEC-05 | Headers HTTP | CSP, HSTS con preload, X-Frame-Options: DENY, X-Content-Type-Options: nosniff |
-| SEC-06 | Permisos del navegador | Cámara, micrófono y geolocalización deshabilitados vía Permissions-Policy |
-| SEC-07 | Error boundaries | Páginas error.tsx, global-error.tsx, not-found.tsx (patrón fail-closed) |
-| SEC-08 | Mensajes genéricos | Errores de autenticación no revelan si el usuario o la contraseña son incorrectos |
-| SEC-09 | Dependencias fijas | Versiones exactas en package-lock.json (sin rangos) |
-| SEC-10 | Middleware Edge | Guard JWT en Edge Runtime (preparado, deshabilitado en MVP) |
+| SEC-03 | Middleware Edge | Guard JWT activo en producción — redirige a `/auth/signin` |
+| SEC-04 | Headers HTTP | CSP, HSTS con preload, X-Frame-Options: DENY |
+| SEC-05 | Error boundaries | Páginas error.tsx, global-error.tsx, not-found.tsx |
+| SEC-06 | Datos privados | JSON con PII en `data/output/` (no en `public/`) |
+| SEC-07 | Git limpio | Excel y JSON con datos de clientes eliminados del historial |
+| SEC-08 | Webhook público | Solo `/api/whatsapp/webhook` excluido del auth (necesario para Twilio) |
 
-**Estado actual:** La infraestructura de seguridad está completamente implementada. El middleware de autenticación está **deshabilitado** para el MVP (matcher vacío) pero puede activarse cambiando la configuración del matcher en `src/middleware.ts`.
+**Estado actual:** Middleware de autenticación **activo en producción**. Todas las rutas requieren JWT excepto login y webhook de WhatsApp.
 
 ### 8.6 Sistema de Roles
 
 | Rol | Acceso | Implementación |
 |---|---|---|
-| `admin` | Todos los módulos + gestión de archivos | Vista completa del dashboard |
-| `cajero` | Vista simplificada de venta cruzada y reposición | `CajeroHome.tsx` — solo información accionable en punto de venta |
+| `admin` | Dashboard completo, campañas, inbox WhatsApp, cotizador, upload | Vista completa |
+| `cajero` | Búsqueda de clientes, venta cruzada, reposición | `CajeroHome.tsx` |
+| `nextaitech` | Panel de comisiones, atribución de campañas | `/comisiones` |
 
-El cambio de rol se gestiona mediante `RoleContext.tsx` con persistencia en localStorage. Los componentes `AdminOnly` y `HomeRouter` controlan el acceso según el rol activo.
+### 8.7 Integraciones Externas
+
+| Servicio | Uso | Costo |
+|---|---|---|
+| Twilio WhatsApp | Envío/recepción de mensajes, webhook | Sandbox gratis para demo |
+| Resend | Envío de emails de campañas | 100/día gratis |
+| Google Gemini 2.5 Flash | Copiloto IA, análisis de recetas (Vision), búsqueda de precios | Gratis (pay-as-you-go) |
+| Vercel KV (Redis) | Persistencia de conversaciones CRM en serverless | Incluido en plan hobby |
 
 ### 8.7 Convenciones de Diseño UI
 
@@ -633,17 +639,33 @@ El cambio de rol se gestiona mediante `RoleContext.tsx` con persistencia en loca
 | Página de upload de archivos Excel | ✅ |
 | Error boundaries y páginas de error | ✅ |
 
-### Fase 3 — Producto SaaS Multi-tenant (post-piloto)
+### Fase 3 — CRM WhatsApp + IA ✅ COMPLETADA
 
-- Autenticación multi-tenant con aislamiento de datos por cliente
-- ~~Upload de archivos Excel desde la propia plataforma~~ → Ya implementado en `/upload`
-- Actualización periódica de datos (cron job semanal o mensual)
+| Entregable | Estado |
+|---|---|
+| Motor de campañas (WhatsApp + Email con plantillas editables) | ✅ |
+| Sistema de atribución de campañas + cálculo de comisiones | ✅ |
+| Landing page con selección de rol (Admin/Cajero/Next AI Tech) | ✅ |
+| Next Best Action — acciones priorizadas con impacto estimado | ✅ |
+| Copiloto IA — chat en lenguaje natural (Gemini 2.5 Flash) | ✅ |
+| Cotizador de precios reales vs competencia (Google Search) | ✅ |
+| CRM WhatsApp — inbox con conversaciones en tiempo real | ✅ |
+| Embudo de ventas — 5 etapas con movimiento automático | ✅ |
+| Pedidos + links de pago + confirmación + postventa | ✅ |
+| Análisis de recetas médicas — Gemini Vision + catálogo | ✅ |
+| Auth middleware activo en producción (Edge Runtime) | ✅ |
+| Security hardening — datos privados, git limpio, JWT | ✅ |
+| Deploy en Vercel con Redis (KV) para persistencia | ✅ |
+
+### Fase 4 — Escalamiento (próximos pasos)
+
+- Migración a Docker/VPS para filesystem persistente (upload real de Excel)
 - Integración directa con sistemas POS colombianos (Siesa, Helisa, World Office)
-- Módulo de campañas: generación de listas de contacto segmentadas para WhatsApp
-- API REST para consumo desde otros sistemas
-- Panel de administración para Next AI Tech (vista de todos los clientes)
-- Pricing SaaS: plan por establecimiento o por número de transacciones analizadas
-- Activación del middleware de autenticación (actualmente deshabilitado en MVP)
+- Multi-tenancy con aislamiento de datos por cliente
+- WhatsApp Business API (número propio, sin sandbox)
+- Pasarela de pago real (Wompi, Nequi, Daviplata)
+- App móvil nativa
+- Pricing SaaS: plan por establecimiento
 
 ---
 
@@ -660,71 +682,83 @@ Al finalizar la implementación en Droguería Super Ofertas, el proyecto se cons
 
 ---
 
-## 13. FUERA DE ALCANCE (FASE 1 Y 2)
+## 13. FUERA DE ALCANCE ACTUAL
 
 - Integración en tiempo real con sistemas POS o ERP
-- Chat conversacional o WhatsApp bot
-- Módulo de pagos o transacciones
+- ~~Chat conversacional o WhatsApp bot~~ → Implementado (CRM WhatsApp + Copiloto IA)
+- ~~Módulo de pagos o transacciones~~ → Implementado (links de pago demo + confirmación)
 - Gestión de inventario o pedidos a proveedores
 - App móvil nativa
-- ~~Autenticación de múltiples usuarios con roles diferenciados~~ → Implementado (admin/cajero)
+- ~~Autenticación de múltiples usuarios con roles diferenciados~~ → Implementado (admin/cajero/nextaitech)
+- ~~Middleware de autenticación~~ → Implementado y activo en producción
 - Dark mode
-- Middleware de autenticación activado en producción (infraestructura lista, deshabilitado en MVP)
 - Multi-tenancy con aislamiento de datos por cliente
+- WhatsApp Business API (actualmente usa sandbox de Twilio)
+- Pasarela de pago real (actualmente links demo)
 
 ---
 
 ## 14. ENTREGABLES ADICIONALES (FUERA DEL ALCANCE ORIGINAL)
 
-Las siguientes funcionalidades fueron implementadas durante la construcción del MVP aunque no estaban contempladas en la versión original del PRD:
+Funcionalidades implementadas más allá del PRD original:
 
-| Funcionalidad | Descripción | Ubicación |
-|---|---|---|
-| Sistema de roles | Dos roles (admin/cajero) con vistas diferenciadas | `RoleContext.tsx`, `HomeRouter.tsx`, `AdminOnly.tsx` |
-| Vista de cajero | Interfaz simplificada para punto de venta | `CajeroHome.tsx` |
-| Upload de archivos | Carga de Excel con drag & drop, detección automática de columnas | `/upload`, `/api/upload` |
-| Seguridad enterprise | Rate limiting, logging estructurado, headers HTTP, error boundaries | `rateLimiter.ts`, `logger.ts`, `next.config.ts` |
-| Autenticación completa | NextAuth v5 con JWT, bcrypt, cookies seguras | `authConfig.ts`, `auth.ts`, `middleware.ts` |
-| Histograma de frecuencia | Distribución de clientes por frecuencia de compra | `FrecuenciaHistogram.tsx` |
-| Mapa de burbujas gancho | Visualización interactiva de productos gancho | `BubbleGancho.tsx` |
-| Drawer de detalle | Panel lateral con historial completo del cliente | `ClienteDetailPanel.tsx` |
-| Búsqueda con debounce | Input de búsqueda con delay de 300ms para rendimiento | `SearchInput.tsx` |
+| Funcionalidad | Descripción |
+|---|---|
+| **CRM WhatsApp** | Inbox de conversaciones en tiempo real con embudo de ventas de 5 etapas |
+| **Webhook WhatsApp** | Recibe mensajes de Twilio, crea conversaciones automáticamente |
+| **Motor de embudo automático** | Mueve conversaciones entre etapas según acciones (Lead → Seguimiento → Potencial → Venta → Postventa) |
+| **Pedidos + Pagos** | Crear pedido, generar link de pago, confirmar pago, marcar entregado — todo desde el chat |
+| **Seguimiento postventa** | Mensaje automático después de entrega preguntando satisfacción |
+| **Análisis de recetas** | Cliente envía foto de receta → Gemini Vision detecta medicamentos → precios automáticos |
+| **Cotizador de precios** | Búsqueda sobre 2.871 productos con precios reales del Excel |
+| **Next Best Action** | Motor que analiza todos los datos y genera acciones priorizadas con impacto en COP |
+| **Copiloto IA** | Chat en lenguaje natural con 6 herramientas de consulta (Gemini 2.5 Flash) |
+| **Motor de campañas** | WhatsApp + Email con 4 plantillas editables en español colombiano |
+| **Sistema de atribución** | Cruza mensajes enviados con compras para calcular comisiones |
+| **Panel Next AI Tech** | Dashboard de comisiones con KPIs, breakdown por tipo/canal, tabla de atribuciones |
+| **3 roles** | Admin (droguería), Cajero (punto de venta), Next AI Tech (comisiones) |
+| **Auth en producción** | Middleware Edge activo, JWT, login con UI branded |
+| **Security hardening** | Datos privados fuera de `public/`, Excel eliminados del historial de git |
+| **Deploy Vercel** | Producción con Redis para persistencia serverless |
 
 ---
 
-## 15. INVENTARIO DE ARCHIVOS GENERADOS
+## 15. INVENTARIO DE ARCHIVOS
 
-### Código fuente: ~50 archivos
+### Código fuente: ~75 archivos
 
 | Categoría | Cantidad | Ubicación |
 |---|---|---|
-| Páginas (rutas) | 10 | `src/app/` |
-| Componentes de layout | 5 | `src/components/layout/` |
+| Páginas y rutas | 12 | `src/app/` |
+| API routes | 11 | `src/app/api/` |
+| Componentes de layout | 6 | `src/components/layout/` |
 | Componentes de gráficas | 5 | `src/components/charts/` |
 | Componentes de tablas | 5 | `src/components/tables/` |
-| Componentes UI reutilizables | 7 | `src/components/ui/` |
-| Librerías y utilidades | 7 | `src/lib/` |
-| Configuración | 7 | Raíz del proyecto |
-| ETL y scripts | 2 | `scripts/` |
-| Vista cajero | 1 | `src/components/cajero/` |
+| Componentes UI | 8 | `src/components/ui/` |
+| Componentes CRM/inbox | 3 | `src/components/inbox/` |
+| Componentes de campañas | 2 | `src/components/campaigns/` |
+| Componentes auth/copilot/landing | 3 | `src/components/` |
+| Librerías y utilidades | 13 | `src/lib/` |
+| Configuración | 7 | Raíz |
 
-### Datos JSON: 8 archivos en `public/data/`
+### Datos JSON: 9 archivos en `data/output/`
 
-| Archivo | Tamaño aprox. | Registros |
-|---|---|---|
-| `kpis_resumen.json` | 220B | 1 objeto |
-| `ventas_mensuales.json` | 500B | 12 meses |
-| `top_productos.json` | 1.3KB | 10 productos |
-| `ventas_cruzadas.json` | 25KB | 217+ pares |
-| `churn_clientes.json` | 268KB | 234+ clientes |
-| `reposicion_pendiente.json` | 132KB | 891+ registros |
-| `clientes_rfm.json` | 342KB | 957 clientes |
-| `productos_gancho.json` | 840KB | 3.268+ productos |
+| Archivo | Registros |
+|---|---|
+| `kpis_resumen.json` | 1 objeto (6 KPIs) |
+| `ventas_mensuales.json` | 6 meses |
+| `top_productos.json` | 10 productos |
+| `ventas_cruzadas.json` | 111+ pares |
+| `churn_clientes.json` | 415+ clientes |
+| `reposicion_pendiente.json` | 891+ registros |
+| `clientes_rfm.json` | 956 clientes |
+| `productos_gancho.json` | 3.268+ productos |
+| `precios_catalogo.json` | 2.871 productos con precios reales |
 
-**Total datos procesados:** 17.721 ventas + 2.582 remisiones = 20.303 registros
+**Total datos procesados:** 9.878 transacciones · 956 clientes únicos · $489M COP
 
 ---
 
 *Documento preparado por Next AI Tech LLC · Miami, Florida*
 *Cliente piloto: Droguería Super Ofertas · Barranquilla, Colombia*
-*Sellix AI v1.1 · Abril 2026*
+*Sellix AI v2.0 · Abril 2026*
