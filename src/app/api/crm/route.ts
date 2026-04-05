@@ -5,7 +5,7 @@
 // =============================================================
 
 import { NextRequest, NextResponse } from "next/server";
-import { loadConversations, saveConversations, generateDemoData } from "@/lib/crmData";
+import { loadConversations, saveConversations } from "@/lib/crmStore";
 import { applyFunnelRules } from "@/lib/funnelEngine";
 import type { Conversation, ChatMessage, Order, Payment } from "@/lib/types";
 

@@ -9,7 +9,7 @@
 // =============================================================
 
 import { NextRequest, NextResponse } from "next/server";
-import { loadConversations, saveConversations } from "@/lib/crmData";
+import { loadConversations, saveConversations } from "@/lib/crmStore";
 import { applyFunnelRules } from "@/lib/funnelEngine";
 import type { Conversation, ChatMessage } from "@/lib/types";
 
