@@ -19,8 +19,7 @@ export async function POST(request: NextRequest) {
     const mediaUrl = formData.get("MediaUrl0") as string | null;
 
     debug.push(`from=${from}, body=${body?.slice(0, 30)}, profile=${profileName}`);
-    debug.push(`KV_REST_API_URL=${process.env.KV_REST_API_URL ? "SET" : "NOT SET"}`);
-    debug.push(`KV_URL=${process.env.KV_URL ? "SET" : "NOT SET"}`);
+    debug.push(`REDIS_URL=${process.env.REDIS_URL ? "SET(" + process.env.REDIS_URL.slice(0, 15) + "...)" : "NOT SET"}`);
 
     if (!from) {
       debug.push("No FROM field");
@@ -95,9 +94,7 @@ export async function POST(request: NextRequest) {
 export async function GET() {
   const debug: Record<string, unknown> = {
     status: "WhatsApp webhook active",
-    kv_rest_api_url: process.env.KV_REST_API_URL ? "SET" : "NOT SET",
-    kv_url: process.env.KV_URL ? "SET" : "NOT SET",
-    kv_rest_api_token: process.env.KV_REST_API_TOKEN ? "SET" : "NOT SET",
+    redis_url: process.env.REDIS_URL ? "SET (" + process.env.REDIS_URL.slice(0, 20) + "...)" : "NOT SET",
   };
 
   try {
