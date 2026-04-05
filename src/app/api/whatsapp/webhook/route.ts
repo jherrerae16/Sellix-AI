@@ -97,7 +97,14 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// Twilio also sends GET for verification
+// GET: verification + debug — shows conversation count from KV
 export async function GET() {
-  return NextResponse.json({ status: "WhatsApp webhook active" });
+  const convs = await loadConversations();
+  return NextResponse.json({
+    status: "WhatsApp webhook active",
+    conversations_stored: convs.length,
+    last_message: convs.length > 0
+      ? convs[convs.length - 1].messages[convs[convs.length - 1].messages.length - 1]?.text?.slice(0, 50)
+      : null,
+  });
 }

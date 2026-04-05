@@ -33,7 +33,12 @@ export default function InboxPage() {
     setLoading(false);
   }, []);
 
-  useEffect(() => { loadData(); }, [loadData]);
+  // Load initially + poll every 5 seconds for new WhatsApp messages
+  useEffect(() => {
+    loadData();
+    const interval = setInterval(loadData, 5000);
+    return () => clearInterval(interval);
+  }, [loadData]);
 
   const selectedConv = convs.find((c) => c.id === selectedId) || null;
 
