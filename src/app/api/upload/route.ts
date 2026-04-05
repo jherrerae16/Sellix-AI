@@ -99,7 +99,25 @@ const isServerless = !!process.env.VERCEL;
 
 export async function GET() {
   const manifest = readManifest();
-  return NextResponse.json({ ...manifest, serverless: isServerless });
+
+  // Check if pre-loaded data exists in data/output/
+  let dataStats = { hasData: false, totalRecords: 0, files: 0 };
+  try {
+    const outputDir = path.join(process.cwd(), "data", "output");
+    const outputFiles = fs.readdirSync(outputDir).filter((f: string) => f.endsWith(".json") && f !== ".gitkeep");
+    if (outputFiles.length > 0) {
+      dataStats.hasData = true;
+      dataStats.files = outputFiles.length;
+      // Count records from churn (as proxy for total customers)
+      const churnPath = path.join(outputDir, "churn_clientes.json");
+      if (fs.existsSync(churnPath)) {
+        const churn = JSON.parse(fs.readFileSync(churnPath, "utf-8"));
+        dataStats.totalRecords = Array.isArray(churn) ? churn.length : 0;
+      }
+    }
+  } catch { /* ignore */ }
+
+  return NextResponse.json({ ...manifest, serverless: isServerless, dataStats });
 }
 
 // ─── POST: upload new file ────────────────────────────────────

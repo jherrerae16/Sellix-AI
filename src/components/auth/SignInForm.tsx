@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { signIn } from "next-auth/react";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import {
   BarChart3, Loader2, AlertCircle, Shield,
   TrendingUp, Users, MessageCircle,
@@ -18,6 +18,7 @@ export function SignInForm() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const router = useRouter();
   const searchParams = useSearchParams();
   const callbackUrl = searchParams.get("callbackUrl") || "/";
 
@@ -38,8 +39,8 @@ export function SignInForm() {
       setLoading(false);
     } else if (result?.ok) {
       localStorage.setItem("sellix-role", "admin");
-      // Force full page reload to pick up session
-      window.location.replace("/");
+      router.push(callbackUrl);
+      router.refresh();
     }
   };
 
