@@ -12,23 +12,23 @@ import {
 const features = [
   {
     icon: <MessageCircle className="w-5 h-5" />,
-    title: "WhatsApp CRM",
-    desc: "Gestiona pedidos y clientes directo desde WhatsApp",
+    title: "Vendedor IA 24/7",
+    desc: "Un asistente que vende por ti en WhatsApp, todo el día",
   },
   {
     icon: <TrendingUp className="w-5 h-5" />,
-    title: "Analítica Inteligente",
-    desc: "Insights en tiempo real sobre ventas y clientes",
+    title: "Analítica Comercial",
+    desc: "Métricas de ventas, clientes y conversión en tiempo real",
   },
   {
     icon: <Zap className="w-5 h-5" />,
     title: "Automatización",
-    desc: "Campañas, reposiciones y seguimiento automático",
+    desc: "Respuestas, seguimiento y campañas sin esfuerzo",
   },
   {
     icon: <GitBranch className="w-5 h-5" />,
     title: "Embudo de Ventas",
-    desc: "Seguimiento de cada oportunidad de lead a postventa",
+    desc: "Cada conversación convertida en oportunidad de cierre",
   },
 ];
 
@@ -86,12 +86,12 @@ export function SignInForm() {
             Potencia las ventas
             <br />
             <span className="bg-gradient-to-r from-blue-300 via-cyan-300 to-blue-300 bg-clip-text text-transparent">
-              de tu droguería
+              de tu negocio
             </span>
           </h1>
 
           <p className="mt-5 text-base xl:text-lg text-gray-300/80 leading-relaxed max-w-md">
-            La plataforma todo-en-uno para gestionar clientes, cerrar ventas más rápido y crecer tu negocio con inteligencia artificial.
+            La plataforma todo-en-uno para vender más por WhatsApp, gestionar clientes y crecer tu negocio con inteligencia artificial.
           </p>
 
           {/* Feature cards */}
