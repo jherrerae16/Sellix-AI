@@ -1,21 +1,25 @@
 // =============================================================
 // Sellix AI — Twilio WhatsApp Webhook
-// Receives messages + images (prescriptions) from WhatsApp
+// Modes:
+//   auto    → IA responde automáticamente al cliente
+//   copilot → IA genera borrador, admin aprueba en inbox
+//   manual  → Solo registra, admin responde manualmente
 // =============================================================
 
 import { NextRequest, NextResponse } from "next/server";
 import { loadConversations, saveConversations } from "@/lib/crmStore";
 import { applyFunnelRules } from "@/lib/funnelEngine";
 import { analyzePrescription } from "@/lib/prescriptionAnalyzer";
+import { generateSalesResponse } from "@/lib/salesAgent";
+import { getBotConfig } from "@/lib/botConfig";
 import twilio from "twilio";
-import type { Conversation, ChatMessage } from "@/lib/types";
+import type { ChatMessage } from "@/lib/types";
 
 async function sendWhatsApp(phone: string, message: string): Promise<boolean> {
   const sid = process.env.TWILIO_ACCOUNT_SID;
   const token = process.env.TWILIO_AUTH_TOKEN;
   const from = process.env.TWILIO_WHATSAPP_FROM;
   if (!sid || !token || !from) return false;
-
   try {
     const client = twilio(sid, token);
     const to = phone.startsWith("whatsapp:") ? phone : `whatsapp:${phone}`;
@@ -37,25 +41,18 @@ export async function POST(request: NextRequest) {
     const mediaUrl = formData.get("MediaUrl0") as string | null;
     const mediaType = formData.get("MediaContentType0") as string | null;
 
-    console.log("WEBHOOK:", { from, body: body?.slice(0, 30), numMedia, mediaType });
-
-    if (!from) {
-      return new NextResponse("OK", { status: 200 });
-    }
+    if (!from) return new NextResponse("OK", { status: 200 });
 
     const phone = from.replace("whatsapp:", "");
     const convs = await loadConversations();
+    const botConfig = await getBotConfig();
 
     // Find or create conversation
     let conv = convs.find((c) => c.cliente.telefono === phone);
     if (!conv) {
       conv = {
         id: `conv_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
-        cliente: {
-          nombre: profileName || phone,
-          telefono: phone,
-          cedula: null,
-        },
+        cliente: { nombre: profileName || phone, telefono: phone, cedula: null },
         stage: "lead",
         status: "no_respondido",
         priority: "alta",
@@ -71,64 +68,106 @@ export async function POST(request: NextRequest) {
       convs.push(conv);
     }
 
-    // Determine if this is an image (potential prescription)
+    // Check if image (prescription)
     const isImage = numMedia > 0 && mediaUrl && mediaType?.startsWith("image/");
 
-    // Save incoming message
-    const msg: ChatMessage = {
+    // Save client message
+    const clientMsg: ChatMessage = {
       id: `msg_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
       timestamp: new Date().toISOString(),
       from: "cliente",
-      text: isImage
-        ? `📷 [Foto enviada]${body ? `\n${body}` : ""}`
-        : (body || "(mensaje vacío)"),
+      text: isImage ? `📷 [Foto enviada]${body ? `\n${body}` : ""}` : (body || "(mensaje vacío)"),
       type: isImage ? "image" : "text",
     };
-    conv.messages.push(msg);
-    conv.lastMessageAt = msg.timestamp;
+    conv.messages.push(clientMsg);
+    conv.lastMessageAt = clientMsg.timestamp;
     conv.unread += 1;
 
-    // ── If image: analyze as prescription ──────────────────────
+    // ── Handle image (prescription analysis) ─────────────────
     if (isImage && mediaUrl) {
-      // Add processing message to CRM
-      const processingMsg: ChatMessage = {
-        id: `msg_${Date.now()}_proc`,
-        timestamp: new Date(Date.now() + 500).toISOString(),
-        from: "sistema",
-        text: "🔍 Analizando receta médica...",
-        type: "text",
-      };
-      conv.messages.push(processingMsg);
-
-      // Analyze the prescription
       const result = await analyzePrescription(mediaUrl);
-
-      // Add result message to CRM
-      const resultMsg: ChatMessage = {
-        id: `msg_${Date.now()}_rx`,
-        timestamp: new Date(Date.now() + 1000).toISOString(),
-        from: "sistema",
-        text: result.mensaje_cliente,
-        type: "text",
-      };
-      conv.messages.push(resultMsg);
-      conv.lastMessageAt = resultMsg.timestamp;
-
-      // Tag the conversation
       if (!conv.tags.includes("receta")) conv.tags.push("receta");
-      if (result.success && result.productos.length > 0) {
-        conv.stage = "potencial";
-        conv.priority = "alta";
+
+      if (botConfig.mode === "auto") {
+        // Send prescription results directly
+        const rxMsg: ChatMessage = {
+          id: `msg_${Date.now()}_rx`,
+          timestamp: new Date(Date.now() + 500).toISOString(),
+          from: "sistema",
+          text: result.mensaje_cliente,
+          type: "text",
+        };
+        conv.messages.push(rxMsg);
+        conv.lastMessageAt = rxMsg.timestamp;
+        await sendWhatsApp(phone, result.mensaje_cliente);
+      } else if (botConfig.mode === "copilot") {
+        // Save as draft for admin approval
+        const draftMsg: ChatMessage = {
+          id: `msg_${Date.now()}_draft`,
+          timestamp: new Date(Date.now() + 500).toISOString(),
+          from: "sistema",
+          text: `💡 *Borrador IA (pendiente aprobación):*\n\n${result.mensaje_cliente}`,
+          type: "text",
+        };
+        conv.messages.push(draftMsg);
+        conv.lastMessageAt = draftMsg.timestamp;
+        if (!conv.tags.includes("borrador")) conv.tags.push("borrador");
       }
+      // manual mode: just save, no response
+    }
 
-      // Send response to client via WhatsApp
-      await sendWhatsApp(phone, result.mensaje_cliente);
+    // ── Handle text messages ─────────────────────────────────
+    if (!isImage && body) {
+      if (botConfig.mode === "auto") {
+        // Generate and send AI response automatically
+        const history = conv.messages
+          .filter((m) => m.from !== "sistema")
+          .slice(-10)
+          .map((m) => ({ from: m.from, text: m.text }));
 
-      console.log("PRESCRIPTION:", {
-        products: result.productos.length,
-        total: result.total_estimado,
-        success: result.success,
-      });
+        const aiResult = await generateSalesResponse(body, history, conv.cliente.nombre);
+
+        const aiMsg: ChatMessage = {
+          id: `msg_${Date.now()}_ai`,
+          timestamp: new Date(Date.now() + 500).toISOString(),
+          from: "agente",
+          text: aiResult.response,
+          type: "text",
+        };
+        conv.messages.push(aiMsg);
+        conv.lastMessageAt = aiMsg.timestamp;
+        conv.unread = 0;
+
+        // Send via WhatsApp
+        await sendWhatsApp(phone, aiResult.response);
+
+        console.log("AUTO-RESPONSE:", {
+          client: conv.cliente.nombre,
+          tools: aiResult.toolsUsed,
+          error: aiResult.error,
+        });
+
+      } else if (botConfig.mode === "copilot") {
+        // Generate draft for admin approval
+        const history = conv.messages
+          .filter((m) => m.from !== "sistema")
+          .slice(-10)
+          .map((m) => ({ from: m.from, text: m.text }));
+
+        const aiResult = await generateSalesResponse(body, history, conv.cliente.nombre);
+
+        const draftMsg: ChatMessage = {
+          id: `msg_${Date.now()}_draft`,
+          timestamp: new Date(Date.now() + 500).toISOString(),
+          from: "sistema",
+          text: `💡 *Sugerencia IA:*\n\n${aiResult.response}`,
+          type: "text",
+        };
+        conv.messages.push(draftMsg);
+        conv.lastMessageAt = draftMsg.timestamp;
+        if (!conv.tags.includes("borrador")) conv.tags.push("borrador");
+      }
+      // manual mode: just save the client message, no AI
     }
 
     applyFunnelRules(conv);
@@ -146,11 +185,10 @@ export async function POST(request: NextRequest) {
 
 export async function GET() {
   const convs = await loadConversations();
+  const config = await getBotConfig();
   return NextResponse.json({
     status: "WhatsApp webhook active",
-    redis_url: process.env.REDIS_URL ? "SET" : "NOT SET",
-    gemini: process.env.GEMINI_API_KEY ? "SET" : "NOT SET",
-    conversations_stored: convs.length,
-    features: ["text_messages", "prescription_analysis", "auto_pricing"],
+    mode: config.mode,
+    conversations: convs.length,
   });
 }

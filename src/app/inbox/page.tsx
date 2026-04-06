@@ -9,6 +9,7 @@ import { useState, useEffect, useCallback } from "react";
 import {
   MessageCircle, Filter, Loader2, BarChart3,
   Users, DollarSign, AlertCircle, Clock,
+  Bot, UserCog, Hand,
 } from "lucide-react";
 import type { Conversation, CRMSummary } from "@/lib/types";
 import { formatCOP } from "@/lib/formatters";
@@ -17,6 +18,13 @@ import { Funnel } from "@/components/inbox/Funnel";
 import { ChatDetail } from "@/components/inbox/ChatDetail";
 
 type Tab = "chats" | "embudo";
+type BotMode = "auto" | "copilot" | "manual";
+
+const MODE_CONFIG: { key: BotMode; label: string; icon: React.ReactNode; desc: string; color: string }[] = [
+  { key: "auto", label: "Automático", icon: <Bot className="w-3.5 h-3.5" />, desc: "IA responde sola", color: "text-emerald-700 bg-emerald-50 border-emerald-200" },
+  { key: "copilot", label: "Co-piloto", icon: <UserCog className="w-3.5 h-3.5" />, desc: "IA sugiere, tú apruebas", color: "text-blue-700 bg-blue-50 border-blue-200" },
+  { key: "manual", label: "Manual", icon: <Hand className="w-3.5 h-3.5" />, desc: "Tú respondes todo", color: "text-gray-700 bg-gray-50 border-gray-200" },
+];
 
 export default function InboxPage() {
   const [convs, setConvs] = useState<Conversation[]>([]);
@@ -24,6 +32,7 @@ export default function InboxPage() {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<Tab>("chats");
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [botMode, setBotMode] = useState<BotMode>("auto");
 
   const loadData = useCallback(async () => {
     const res = await fetch("/api/crm");
@@ -33,12 +42,29 @@ export default function InboxPage() {
     setLoading(false);
   }, []);
 
-  // Load initially + poll every 5 seconds for new WhatsApp messages
+  const loadBotConfig = useCallback(async () => {
+    try {
+      const res = await fetch("/api/bot");
+      const data = await res.json();
+      setBotMode(data.mode || "auto");
+    } catch { /* ignore */ }
+  }, []);
+
+  const changeBotMode = async (mode: BotMode) => {
+    setBotMode(mode);
+    await fetch("/api/bot", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ mode }),
+    });
+  };
+
   useEffect(() => {
     loadData();
+    loadBotConfig();
     const interval = setInterval(loadData, 5000);
     return () => clearInterval(interval);
-  }, [loadData]);
+  }, [loadData, loadBotConfig]);
 
   const selectedConv = convs.find((c) => c.id === selectedId) || null;
 
@@ -85,22 +111,40 @@ export default function InboxPage() {
             </h1>
             <p className="text-sm text-gray-500">{summary?.total_conversaciones} conversaciones</p>
           </div>
-          {/* Tabs */}
-          <div className="flex bg-gray-100 rounded-lg p-0.5">
-            {[
-              { key: "chats" as Tab, label: "Chats", icon: <MessageCircle className="w-4 h-4" /> },
-              { key: "embudo" as Tab, label: "Embudo", icon: <Filter className="w-4 h-4" /> },
-            ].map((tab) => (
-              <button
-                key={tab.key}
-                onClick={() => setActiveTab(tab.key)}
-                className={`flex items-center gap-1.5 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-                  activeTab === tab.key ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"
-                }`}
-              >
-                {tab.icon}{tab.label}
-              </button>
-            ))}
+          <div className="flex items-center gap-3">
+            {/* Bot mode toggle */}
+            <div className="flex border border-gray-200 rounded-lg overflow-hidden">
+              {MODE_CONFIG.map((m) => (
+                <button
+                  key={m.key}
+                  onClick={() => changeBotMode(m.key)}
+                  title={m.desc}
+                  className={`flex items-center gap-1 px-3 py-1.5 text-xs font-medium transition-colors border-r last:border-r-0 border-gray-200 ${
+                    botMode === m.key ? m.color : "text-gray-400 bg-white hover:bg-gray-50"
+                  }`}
+                >
+                  {m.icon}{m.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Tabs */}
+            <div className="flex bg-gray-100 rounded-lg p-0.5">
+              {[
+                { key: "chats" as Tab, label: "Chats", icon: <MessageCircle className="w-4 h-4" /> },
+                { key: "embudo" as Tab, label: "Embudo", icon: <Filter className="w-4 h-4" /> },
+              ].map((tab) => (
+                <button
+                  key={tab.key}
+                  onClick={() => setActiveTab(tab.key)}
+                  className={`flex items-center gap-1.5 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                    activeTab === tab.key ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"
+                  }`}
+                >
+                  {tab.icon}{tab.label}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
 

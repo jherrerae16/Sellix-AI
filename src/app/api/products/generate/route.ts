@@ -1,7 +1,6 @@
 // =============================================================
 // Sellix AI — Genera catálogo de precios reales desde Excel
-// Lee los archivos subidos, calcula precio promedio por producto
-// y genera public/data/precios_catalogo.json
+// Usa MEDIANA (no promedio) para evitar outliers
 // =============================================================
 
 import { NextResponse } from "next/server";
@@ -12,29 +11,30 @@ import * as XLSX from "xlsx";
 const UPLOADS_DIR = join(process.cwd(), "data", "uploads");
 const OUTPUT_PATH = join(process.cwd(), "data", "output", "precios_catalogo.json");
 
-interface ManifestFile {
-  id: string;
-  name: string;
-  active: boolean;
+interface ManifestFile { id: string; name: string; active: boolean; }
+
+function median(arr: number[]): number {
+  if (arr.length === 0) return 0;
+  const sorted = [...arr].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  return sorted.length % 2 ? sorted[mid] : Math.round((sorted[mid - 1] + sorted[mid]) / 2);
 }
 
-interface PriceEntry {
-  codigo: string;
-  nombre: string;
-  precio_unidad: number;
-  precio_caja: number;
-  transacciones: number;
-  unidades_vendidas: number;
-  ingreso_total: number;
+function mostFrequent(arr: number[]): number {
+  if (arr.length === 0) return 0;
+  const freq = new Map<number, number>();
+  for (const v of arr) freq.set(v, (freq.get(v) || 0) + 1);
+  let maxCount = 0, maxVal = arr[0];
+  for (const [val, count] of freq) {
+    if (count > maxCount) { maxCount = count; maxVal = val; }
+  }
+  return maxVal;
 }
 
 export async function POST() {
   try {
-    // Read manifest to find uploaded files
     const manifestRaw = await readFile(join(UPLOADS_DIR, "manifest.json"), "utf-8");
     const manifest = JSON.parse(manifestRaw);
-
-    // Find the ventas file (largest one, or the one with "Venta" in name)
     const ventasFile = manifest.files.find(
       (f: ManifestFile) => f.name.toLowerCase().includes("venta")
     );
@@ -49,7 +49,6 @@ export async function POST() {
     const ws = wb.Sheets[wb.SheetNames[0]];
     const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(ws);
 
-    // Aggregate prices per product
     const productMap = new Map<string, {
       nombre: string;
       precios_unidad: number[];
@@ -89,43 +88,53 @@ export async function POST() {
       entry.unidades += totalUnits || 1;
       entry.ingresos += valorNeta;
 
+      // Only add non-zero prices
       if (valorUnidad > 0) entry.precios_unidad.push(valorUnidad);
       if (valorCaja > 0) entry.precios_caja.push(valorCaja);
     }
 
-    // Calculate average prices
-    const catalog: PriceEntry[] = [];
+    interface CatalogEntry {
+      codigo: string;
+      nombre: string;
+      precio_unidad: number;
+      precio_caja: number;
+      precio_unidad_frecuente: number;
+      precio_caja_frecuente: number;
+      transacciones: number;
+      unidades_vendidas: number;
+      ingreso_total: number;
+    }
+
+    const catalog: CatalogEntry[] = [];
 
     for (const [codigo, data] of productMap) {
-      // Best price: use unit price if available, otherwise derive from total
-      const avgUnidad = data.precios_unidad.length > 0
-        ? Math.round(data.precios_unidad.reduce((a, b) => a + b, 0) / data.precios_unidad.length)
-        : Math.round(data.ingresos / data.unidades);
+      // Use MEDIAN to avoid outliers (not average)
+      const medUnidad = median(data.precios_unidad);
+      const medCaja = median(data.precios_caja);
 
-      const avgCaja = data.precios_caja.length > 0
-        ? Math.round(data.precios_caja.reduce((a, b) => a + b, 0) / data.precios_caja.length)
-        : 0;
+      // Also store most frequent price (mode)
+      const freqUnidad = mostFrequent(data.precios_unidad);
+      const freqCaja = mostFrequent(data.precios_caja);
 
       catalog.push({
         codigo,
         nombre: data.nombre,
-        precio_unidad: avgUnidad,
-        precio_caja: avgCaja,
+        precio_unidad: medUnidad || Math.round(data.ingresos / Math.max(data.unidades, 1)),
+        precio_caja: medCaja,
+        precio_unidad_frecuente: freqUnidad,
+        precio_caja_frecuente: freqCaja,
         transacciones: data.transacciones,
         unidades_vendidas: data.unidades,
         ingreso_total: data.ingresos,
       });
     }
 
-    // Sort by most sold
     catalog.sort((a, b) => b.transacciones - a.transacciones);
-
     await writeFile(OUTPUT_PATH, JSON.stringify(catalog, null, 2), "utf-8");
 
     return NextResponse.json({
       success: true,
       productos: catalog.length,
-      archivo: "public/data/precios_catalogo.json",
     });
   } catch (err) {
     return NextResponse.json(
