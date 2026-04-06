@@ -242,6 +242,73 @@ export interface SalesAgentResult {
   error?: string;
 }
 
+async function callGemini(
+  clientMessage: string,
+  conversationHistory: { from: string; text: string }[],
+  clientName: string,
+): Promise<{ text: string; toolsUsed: string[] }> {
+  const apiKey = process.env.GEMINI_API_KEY!;
+  const genAI = new GoogleGenerativeAI(apiKey);
+  const model = genAI.getGenerativeModel({
+    model: "gemini-2.5-flash",
+    systemInstruction: SYSTEM_PROMPT,
+    tools: [{ functionDeclarations: getToolDeclarations() }],
+  });
+
+  // Build chat history — only include user/model pairs
+  const history: { role: "user" | "model"; parts: { text: string }[] }[] = [];
+  for (const msg of conversationHistory.slice(-10)) {
+    // Skip system messages — Gemini only accepts user/model
+    if (msg.from !== "cliente" && msg.from !== "agente") continue;
+    history.push({
+      role: msg.from === "cliente" ? "user" : "model",
+      parts: [{ text: msg.text }],
+    });
+  }
+
+  // Ensure history alternates user/model (Gemini requirement)
+  const cleanHistory: typeof history = [];
+  for (const entry of history) {
+    const last = cleanHistory[cleanHistory.length - 1];
+    if (last && last.role === entry.role) {
+      // Merge consecutive same-role messages
+      last.parts[0].text += "\n" + entry.parts[0].text;
+    } else {
+      cleanHistory.push(entry);
+    }
+  }
+
+  const chat = model.startChat({ history: cleanHistory });
+  let result = await chat.sendMessage(`${clientMessage}`);
+  let response = result.response;
+
+  const toolsUsed: string[] = [];
+  let iterations = 0;
+
+  while (iterations < 3) {
+    const functionCalls = response.functionCalls();
+    if (!functionCalls || functionCalls.length === 0) break;
+
+    const functionResponses = [];
+    for (const call of functionCalls) {
+      toolsUsed.push(call.name);
+      const toolResult = await executeTool(call.name, call.args as Record<string, unknown>);
+      functionResponses.push({
+        functionResponse: {
+          name: call.name,
+          response: toolResult as object,
+        },
+      });
+    }
+
+    result = await chat.sendMessage(functionResponses);
+    response = result.response;
+    iterations++;
+  }
+
+  return { text: response.text() || "", toolsUsed };
+}
+
 export async function generateSalesResponse(
   clientMessage: string,
   conversationHistory: { from: string; text: string }[],
@@ -250,69 +317,36 @@ export async function generateSalesResponse(
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
     return {
-      response: "¡Hola! Gracias por escribirnos. Un momento, te atenderá uno de nuestros asesores. 😊",
+      response: "",
       toolsUsed: [],
       error: "GEMINI_API_KEY not set",
     };
   }
 
-  try {
-    const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({
-      model: "gemini-2.5-flash",
-      systemInstruction: SYSTEM_PROMPT,
-      tools: [{ functionDeclarations: getToolDeclarations() }],
-    });
+  // Try up to 2 times
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const result = await callGemini(clientMessage, conversationHistory, clientName);
 
-    // Build chat history
-    const history: { role: "user" | "model"; parts: { text: string }[] }[] = [];
-    for (const msg of conversationHistory.slice(-10)) {
-      history.push({
-        role: msg.from === "cliente" ? "user" : "model",
-        parts: [{ text: msg.text }],
-      });
-    }
-
-    const chat = model.startChat({ history });
-    let result = await chat.sendMessage(
-      `[Cliente: ${clientName}] ${clientMessage}`
-    );
-    let response = result.response;
-
-    // Process function calls
-    const toolsUsed: string[] = [];
-    let iterations = 0;
-
-    while (iterations < 5) {
-      const functionCalls = response.functionCalls();
-      if (!functionCalls || functionCalls.length === 0) break;
-
-      const functionResponses = [];
-      for (const call of functionCalls) {
-        toolsUsed.push(call.name);
-        const toolResult = await executeTool(call.name, call.args as Record<string, unknown>);
-        functionResponses.push({
-          functionResponse: {
-            name: call.name,
-            response: toolResult as object,
-          },
-        });
+      if (result.text) {
+        return { response: result.text, toolsUsed: result.toolsUsed };
       }
 
-      result = await chat.sendMessage(functionResponses);
-      response = result.response;
-      iterations++;
+      console.error(`Sales agent attempt ${attempt + 1}: empty response`);
+    } catch (err) {
+      console.error(`Sales agent attempt ${attempt + 1} error:`, err instanceof Error ? err.message : err);
+
+      // Wait 1 second before retry
+      if (attempt === 0) await new Promise((r) => setTimeout(r, 1000));
     }
-
-    const responseText = response.text() || "¡Gracias por escribirnos! Un asesor te atenderá pronto.";
-
-    return { response: responseText, toolsUsed };
-  } catch (err) {
-    console.error("Sales agent error:", err);
-    return {
-      response: "¡Hola! Gracias por escribirnos a Droguería Super Ofertas. Un momento, te atenderá uno de nuestros asesores. 😊",
-      toolsUsed: [],
-      error: err instanceof Error ? err.message : String(err),
-    };
   }
+
+  // Both attempts failed — DON'T send a fallback message
+  // Instead, return empty so the webhook doesn't send anything
+  // The message stays in the inbox for the admin to respond manually
+  return {
+    response: "",
+    toolsUsed: [],
+    error: "Gemini failed after 2 attempts",
+  };
 }

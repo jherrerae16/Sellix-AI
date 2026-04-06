@@ -127,23 +127,29 @@ export async function POST(request: NextRequest) {
 
         const aiResult = await generateSalesResponse(body, history, conv.cliente.nombre);
 
-        const aiMsg: ChatMessage = {
-          id: `msg_${Date.now()}_ai`,
-          timestamp: new Date(Date.now() + 500).toISOString(),
-          from: "agente",
-          text: aiResult.response,
-          type: "text",
-        };
-        conv.messages.push(aiMsg);
-        conv.lastMessageAt = aiMsg.timestamp;
-        conv.unread = 0;
+        // Only send if AI generated a real response
+        if (aiResult.response) {
+          const aiMsg: ChatMessage = {
+            id: `msg_${Date.now()}_ai`,
+            timestamp: new Date(Date.now() + 500).toISOString(),
+            from: "agente",
+            text: aiResult.response,
+            type: "text",
+          };
+          conv.messages.push(aiMsg);
+          conv.lastMessageAt = aiMsg.timestamp;
+          conv.unread = 0;
 
-        // Send via WhatsApp
-        await sendWhatsApp(phone, aiResult.response);
+          await sendWhatsApp(phone, aiResult.response);
+        } else {
+          // AI failed — leave message for admin to respond manually
+          console.error("AI FAILED — message left for admin:", aiResult.error);
+        }
 
         console.log("AUTO-RESPONSE:", {
           client: conv.cliente.nombre,
           tools: aiResult.toolsUsed,
+          responded: !!aiResult.response,
           error: aiResult.error,
         });
 
