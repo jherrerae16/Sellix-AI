@@ -226,7 +226,13 @@ FLUJO DE VENTA:
 5. PEDIDO: Cuando confirme, resume el pedido con precios y ofrece generar link de pago
 6. CIERRE: Confirma método de pago y domicilio
 
-IMPORTANTE: Nunca presiones al cliente. Si no quiere comprar, despídete amablemente.`;
+REGLAS CRÍTICAS DE CONTEXTO:
+- Si el cliente dice "No" después de una sugerencia de VENTA CRUZADA, eso significa que NO QUIERE el producto adicional, pero SÍ quiere continuar con su pedido original. En ese caso, responde algo como "¡Perfecto! Entonces continuemos con tu pedido de [producto original]. ¿Lo quieres a domicilio o lo recoges?"
+- Si el cliente dice "No" después de que le ofreces un producto inicial y NO ha confirmado nada antes, ahí sí es un rechazo. Pregunta amablemente si necesita otra cosa.
+- NUNCA interpretes un "No" a la venta cruzada como un "No" al pedido completo.
+- Mantén siempre en mente qué productos ya confirmó el cliente. Si confirmó Losartán y dice "No" a Atorvastatina, el Losartán sigue en el pedido.
+
+IMPORTANTE: Nunca presiones al cliente. Si definitivamente no quiere comprar nada, despídete amablemente.`;
 
 // ── Main function ─────────────────────────────────────────────
 
