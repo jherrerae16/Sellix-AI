@@ -18,7 +18,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       const publicPaths = [
         "/auth/signin",
         "/api/auth",
-        "/api/whatsapp/webhook",  // Twilio sends POST here without auth
+        "/api/whatsapp/webhook",
+        "/welcome",
       ];
 
       if (publicPaths.some((p) => pathname.startsWith(p))) return true;
