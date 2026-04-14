@@ -60,3 +60,6 @@ yarn-error.log*
 # Testing
 coverage/
 .jest-cache/
+
+# Claude Code
+.claude/skills/

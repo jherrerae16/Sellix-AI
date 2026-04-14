@@ -16,7 +16,10 @@
       "Bash(git pull:*)",
       "Bash(mkdir -p /Users/jdh/Desktop/SellixAI-MVP/src/app/api/actions)",
       "Bash(mkdir -p /Users/jdh/Desktop/SellixAI-MVP/src/app/acciones)",
-      "Bash(mkdir -p /Users/jdh/Desktop/SellixAI-MVP/src/app/api/copilot)"
+      "Bash(mkdir -p /Users/jdh/Desktop/SellixAI-MVP/src/app/api/copilot)",
+      "Bash(npx tsc:*)",
+      "Bash(mkdir -p /Users/jdh/Desktop/SellixAI-MVP/.claude/skills/ui-ux-pro-max)",
+      "Bash(cp -r /tmp/ui-ux-pro-max-skill/src/ui-ux-pro-max/* /Users/jdh/Desktop/SellixAI-MVP/.claude/skills/ui-ux-pro-max/)"
     ]
   }
 }
