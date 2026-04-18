@@ -10,6 +10,7 @@ import type {
   KPIsResumen, ClienteChurn, ReposicionPendiente, VentaCruzada,
   ClienteRFM, ProductoGancho, VentaMensual, TopProducto,
   ClienteRecurrencia, VentasCruzadasV2, ClienteChurnV2, ChurnResumen,
+  Bundle,
 } from "./types";
 
 const DATA_DIR = join(process.cwd(), "data", "output");
@@ -74,4 +75,7 @@ export async function getChurnResumen(): Promise<ChurnResumen> {
   return loadJSON<ChurnResumen>("churn_resumen.json", {
     total_clientes: 0, por_tipo: {}, por_riesgo: {}, top_tratamientos_abandonados: [],
   });
+}
+export async function getBundles(): Promise<Bundle[]> {
+  return loadJSON<Bundle[]>("bundles.json", []);
 }

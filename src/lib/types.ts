@@ -342,6 +342,23 @@ export interface VentasCruzadasV2 {
   por_tratamiento: AssocGeneric[];
 }
 
+export interface Bundle {
+  productos: {
+    codigo: string;
+    nombre: string;
+    categoria: string;
+    tratamiento: string;
+    precio_unidad: number;
+    precio_caja: number;
+  }[];
+  tamano: number;
+  apariciones: number;
+  ticket_promedio: number;
+  ticket_suma: number;
+  categorias_involucradas: string[];
+  tratamientos_involucrados: string[];
+}
+
 // =============================================================
 // Churn v2 (segmentación por tratamiento)
 // =============================================================
