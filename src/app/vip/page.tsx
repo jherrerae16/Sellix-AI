@@ -1,5 +1,6 @@
 // =============================================================
-// Sellix AI — Segmentación por Recurrencia de Compra
+// Sellix AI — Segmentación por Recurrencia
+// Estilo: AI-Native UI + Minimalism
 // =============================================================
 
 export const dynamic = "force-dynamic";
@@ -8,7 +9,11 @@ import { getRecurrencia } from "@/lib/dataService";
 import { RecurrenciaTable } from "@/components/tables/RecurrenciaTable";
 import { formatCOP } from "@/lib/formatters";
 import { AdminOnly } from "@/components/layout/AdminOnly";
-import { Clock } from "lucide-react";
+import { PageHeader } from "@/components/ui/PageHeader";
+import { StatCard } from "@/components/ui/StatCard";
+import {
+  Users, Repeat, Package, Clock, ShoppingBag, TrendingDown, Sparkles,
+} from "lucide-react";
 
 export default async function VIPPage() {
   const recurrencia = await getRecurrencia();
@@ -24,68 +29,100 @@ export default async function VIPPage() {
 
   const conCronicos = recurrencia.filter((r) => r.tiene_cronicos).length;
   const ingresoTotal = recurrencia.reduce((sum, r) => sum + r.ingreso_total, 0);
+  const totalRecurrentes = recCounts.recurrente_producto + recCounts.recurrente_categoria + recCounts.recurrente_tratamiento;
+  const pctRecurrentes = Math.round((totalRecurrentes / recurrencia.length) * 100);
 
   return (
     <AdminOnly>
-    <div className="space-y-6">
-      {/* Header */}
-      <div>
-        <h1 className="text-xl font-bold text-gray-900">Segmentación de Clientes</h1>
-        <p className="text-sm text-gray-500 mt-0.5">
-          {recurrencia.length} clientes analizados · Ingreso total:{" "}
-          <span className="font-medium text-brand-blue">{formatCOP(ingresoTotal)}</span>
-        </p>
+    <div className="space-y-8 max-w-7xl mx-auto">
+      <PageHeader
+        title="Segmentación de Clientes"
+        subtitle={`${recurrencia.length} clientes · ${formatCOP(ingresoTotal)} en ingresos`}
+        icon={<Users className="w-5 h-5" />}
+        badge={
+          <span className="text-xs font-semibold bg-indigo-50 text-indigo-600 px-2.5 py-1 rounded-full">
+            Recurrencia
+          </span>
+        }
+      />
+
+      {/* Hero insight */}
+      <div className="relative overflow-hidden bg-gradient-to-br from-indigo-50 via-white to-emerald-50 rounded-3xl border border-indigo-100 p-8">
+        <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-200/30 rounded-full blur-3xl -translate-y-1/2 translate-x-1/4" />
+        <div className="relative flex items-start gap-4">
+          <div className="w-12 h-12 bg-indigo-600 rounded-2xl flex items-center justify-center text-white shadow-lg shadow-indigo-200">
+            <Sparkles className="w-6 h-6" />
+          </div>
+          <div className="flex-1">
+            <p className="text-sm font-semibold text-indigo-600 uppercase tracking-wider">Insight principal</p>
+            <h2 className="text-2xl font-bold text-gray-900 mt-1 tracking-tight">
+              {pctRecurrentes}% de tus clientes son recurrentes
+            </h2>
+            <p className="text-gray-600 mt-2 max-w-2xl">
+              <span className="font-semibold text-gray-900">{totalRecurrentes} clientes</span> regresan consistentemente ·{" "}
+              <span className="font-semibold text-emerald-700">{conCronicos} tienen tratamientos crónicos</span> con alto potencial de recompra predecible.
+            </p>
+          </div>
+        </div>
       </div>
 
       {/* Segment cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-6 gap-3">
-        <div className="rounded-xl border border-gray-200 border-l-4 border-l-blue-500 bg-blue-50 p-3">
-          <p className="text-xs font-semibold text-blue-700 uppercase">Por producto</p>
-          <p className="text-2xl font-bold text-gray-900 mt-1">{recCounts.recurrente_producto}</p>
-          <p className="text-[11px] text-gray-500">mismo SKU repetido</p>
-        </div>
-        <div className="rounded-xl border border-gray-200 border-l-4 border-l-indigo-500 bg-indigo-50 p-3">
-          <p className="text-xs font-semibold text-indigo-700 uppercase">Por categoría</p>
-          <p className="text-2xl font-bold text-gray-900 mt-1">{recCounts.recurrente_categoria}</p>
-          <p className="text-[11px] text-gray-500">rota marcas</p>
-        </div>
-        <div className="rounded-xl border border-gray-200 border-l-4 border-l-emerald-500 bg-emerald-50 p-3">
-          <p className="text-xs font-semibold text-emerald-700 uppercase">Crónico</p>
-          <p className="text-2xl font-bold text-gray-900 mt-1">{recCounts.recurrente_tratamiento}</p>
-          <p className="text-[11px] text-gray-500">tratamiento continuo</p>
-        </div>
-        <div className="rounded-xl border border-gray-200 border-l-4 border-l-violet-500 bg-violet-50 p-3">
-          <p className="text-xs font-semibold text-violet-700 uppercase">Multicomprador</p>
-          <p className="text-2xl font-bold text-gray-900 mt-1">{recCounts.frecuente_multicomprador}</p>
-          <p className="text-[11px] text-gray-500">alta frecuencia</p>
-        </div>
-        <div className="rounded-xl border border-gray-200 border-l-4 border-l-gray-400 bg-gray-50 p-3">
-          <p className="text-xs font-semibold text-gray-600 uppercase">Ocasional</p>
-          <p className="text-2xl font-bold text-gray-900 mt-1">{recCounts.ocasional}</p>
-          <p className="text-[11px] text-gray-500">compras esporádicas</p>
-        </div>
-        <div className="rounded-xl border border-gray-200 border-l-4 border-l-red-500 bg-red-50 p-3">
-          <p className="text-xs font-semibold text-red-700 uppercase">Inactivo</p>
-          <p className="text-2xl font-bold text-gray-900 mt-1">{recCounts.inactivo}</p>
-          <p className="text-[11px] text-gray-500">{">"}90 días</p>
+      <div>
+        <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Distribución por tipo</p>
+        <div className="grid grid-cols-2 lg:grid-cols-6 gap-3">
+          <StatCard
+            label="Por producto"
+            value={recCounts.recurrente_producto}
+            sublabel="mismo SKU"
+            icon={<Repeat className="w-4 h-4" />}
+            accent="indigo"
+            size="sm"
+          />
+          <StatCard
+            label="Por categoría"
+            value={recCounts.recurrente_categoria}
+            sublabel="rota marcas"
+            icon={<Package className="w-4 h-4" />}
+            accent="blue"
+            size="sm"
+          />
+          <StatCard
+            label="Crónico"
+            value={recCounts.recurrente_tratamiento}
+            sublabel="continuo"
+            icon={<Clock className="w-4 h-4" />}
+            accent="emerald"
+            size="sm"
+          />
+          <StatCard
+            label="Multicomprador"
+            value={recCounts.frecuente_multicomprador}
+            sublabel="alta frec."
+            icon={<ShoppingBag className="w-4 h-4" />}
+            accent="violet"
+            size="sm"
+          />
+          <StatCard
+            label="Ocasional"
+            value={recCounts.ocasional}
+            sublabel="esporádico"
+            icon={<Users className="w-4 h-4" />}
+            accent="gray"
+            size="sm"
+          />
+          <StatCard
+            label="Inactivo"
+            value={recCounts.inactivo}
+            sublabel=">90 días"
+            icon={<TrendingDown className="w-4 h-4" />}
+            accent="red"
+            size="sm"
+          />
         </div>
       </div>
 
-      {/* Chronic highlight */}
-      <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 flex items-start gap-3">
-        <Clock className="w-5 h-5 text-emerald-600 flex-shrink-0 mt-0.5" />
-        <div>
-          <p className="text-sm font-semibold text-emerald-800">
-            {conCronicos} clientes ({Math.round((conCronicos / recurrencia.length) * 100)}%) tienen productos de tratamiento crónico
-          </p>
-          <p className="text-xs text-emerald-600 mt-0.5">
-            Alto potencial de retención y recompra predecible
-          </p>
-        </div>
-      </div>
-
-      {/* Main table */}
-      <div className="bg-white rounded-xl border border-gray-200 p-5">
+      {/* Table */}
+      <div className="bg-white rounded-3xl border border-gray-100 shadow-soft p-6">
         <RecurrenciaTable data={recurrencia} />
       </div>
     </div>

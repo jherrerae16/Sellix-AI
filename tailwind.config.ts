@@ -9,20 +9,29 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
+        // AI-Native brand palette
         brand: {
-          blue: "#185FA5",
-          red: "#E24B4A",
-          orange: "#EF9F27",
-          green: "#3B6D11",
+          blue: "#6366F1",   // indigo (primary)
+          red: "#EF4444",
+          orange: "#F59E0B",
+          green: "#10B981",
         },
         risk: {
-          high: "#E24B4A",
-          medium: "#EF9F27",
-          low: "#3B6D11",
+          high: "#EF4444",
+          medium: "#F59E0B",
+          low: "#10B981",
+        },
+        accent: {
+          emerald: "#10B981",
+          violet: "#8B5CF6",
         },
       },
       fontFamily: {
-        sans: ["Inter", "ui-sans-serif", "system-ui", "sans-serif"],
+        sans: ["Plus Jakarta Sans", "ui-sans-serif", "system-ui", "sans-serif"],
+      },
+      boxShadow: {
+        'soft': '0 2px 8px -2px rgb(99 102 241 / 0.08)',
+        'soft-lg': '0 10px 30px -10px rgb(99 102 241 / 0.15)',
       },
     },
   },
