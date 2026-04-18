@@ -3,7 +3,7 @@
 import { useState, useMemo } from "react";
 import {
   Search, Phone, AlertTriangle, TrendingDown, Clock, Heart, X,
-  ChevronUp, ChevronDown, ChevronsUpDown, Calendar,
+  ChevronUp, ChevronDown, ChevronsUpDown, Calendar, PhoneOff,
 } from "lucide-react";
 import type { ClienteChurnV2, TipoChurnV2 } from "@/lib/types";
 import { formatCOP, formatDate } from "@/lib/formatters";
@@ -192,9 +192,15 @@ export function ChurnV2Table({ data }: Props) {
   const [query, setQuery] = useState("");
   const [tipo, setTipo] = useState<TipoChurnV2 | "todos">("todos");
   const [riesgo, setRiesgo] = useState<"todos" | "alto" | "medio" | "bajo">("todos");
+  const [contactableOnly, setContactableOnly] = useState(false);
   const [sortField, setSortField] = useState<SortField>("ingreso_total");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [selected, setSelected] = useState<ClienteChurnV2 | null>(null);
+
+  const contactableCount = useMemo(
+    () => data.filter((r) => r.telefono && String(r.telefono).trim().length >= 7).length,
+    [data]
+  );
 
   const handleSort = (field: SortField) => {
     if (sortField === field) setSortDir(sortDir === "desc" ? "asc" : "desc");
@@ -203,6 +209,9 @@ export function ChurnV2Table({ data }: Props) {
 
   const filtered = useMemo(() => {
     let rows = data;
+    if (contactableOnly) {
+      rows = rows.filter((r) => r.telefono && String(r.telefono).trim().length >= 7);
+    }
     if (tipo !== "todos") rows = rows.filter((r) => r.tipo_churn === tipo);
     if (riesgo !== "todos") rows = rows.filter((r) => r.nivel_riesgo === riesgo);
     if (query) {
@@ -219,7 +228,7 @@ export function ChurnV2Table({ data }: Props) {
       return sortDir === "desc" ? vb - va : va - vb;
     });
     return rows.slice(0, 100);
-  }, [data, query, tipo, riesgo, sortField, sortDir]);
+  }, [data, query, tipo, riesgo, contactableOnly, sortField, sortDir]);
 
   return (
     <div className="space-y-4">
@@ -253,6 +262,24 @@ export function ChurnV2Table({ data }: Props) {
           <option value="medio">Medio</option>
           <option value="bajo">Bajo</option>
         </select>
+
+        <button
+          onClick={() => setContactableOnly(!contactableOnly)}
+          title={contactableOnly ? "Mostrando solo contactables" : "Filtrar solo contactables"}
+          className={`inline-flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-lg border transition-colors ${
+            contactableOnly
+              ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+              : "bg-white text-gray-600 border-gray-200 hover:bg-gray-50"
+          }`}
+        >
+          {contactableOnly ? <Phone className="w-4 h-4" /> : <PhoneOff className="w-4 h-4" />}
+          Contactables
+          <span className={`text-xs px-1.5 py-0.5 rounded-full font-bold ${
+            contactableOnly ? "bg-emerald-100 text-emerald-700" : "bg-gray-100 text-gray-500"
+          }`}>
+            {contactableCount}
+          </span>
+        </button>
       </div>
 
       {/* Table */}

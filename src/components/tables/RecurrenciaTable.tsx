@@ -3,7 +3,7 @@
 import { useState, useMemo } from "react";
 import {
   Search, Phone, Package, Repeat, Users, Clock, X,
-  ChevronUp, ChevronDown, ChevronsUpDown, Calendar, ShoppingBag,
+  ChevronUp, ChevronDown, ChevronsUpDown, Calendar, ShoppingBag, PhoneOff,
 } from "lucide-react";
 import type { ClienteRecurrencia, TipoClienteRecurrencia } from "@/lib/types";
 import { formatCOP, formatDate } from "@/lib/formatters";
@@ -183,6 +183,7 @@ function ClientDetailDrawer({ cliente, onClose }: { cliente: ClienteRecurrencia;
 export function RecurrenciaTable({ data }: Props) {
   const [query, setQuery] = useState("");
   const [tipo, setTipo] = useState<TipoClienteRecurrencia | "todos">("todos");
+  const [contactableOnly, setContactableOnly] = useState(false);
   const [sortField, setSortField] = useState<SortField>("ingreso_total");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [selected, setSelected] = useState<ClienteRecurrencia | null>(null);
@@ -192,8 +193,16 @@ export function RecurrenciaTable({ data }: Props) {
     else { setSortField(field); setSortDir("desc"); }
   };
 
+  const contactableCount = useMemo(
+    () => data.filter((r) => r.telefono && String(r.telefono).trim().length >= 7).length,
+    [data]
+  );
+
   const filtered = useMemo(() => {
     let rows = data;
+    if (contactableOnly) {
+      rows = rows.filter((r) => r.telefono && String(r.telefono).trim().length >= 7);
+    }
     if (tipo !== "todos") rows = rows.filter((r) => r.tipo_cliente === tipo);
     if (query) {
       const q = query.toLowerCase();
@@ -209,7 +218,7 @@ export function RecurrenciaTable({ data }: Props) {
       return sortDir === "desc" ? vb - va : va - vb;
     });
     return rows.slice(0, 100);
-  }, [data, query, tipo, sortField, sortDir]);
+  }, [data, query, tipo, contactableOnly, sortField, sortDir]);
 
   return (
     <div className="space-y-4">
@@ -235,6 +244,24 @@ export function RecurrenciaTable({ data }: Props) {
             <option key={t} value={t}>{TIPO_CONFIG[t].label}</option>
           ))}
         </select>
+
+        <button
+          onClick={() => setContactableOnly(!contactableOnly)}
+          title={contactableOnly ? "Mostrando solo contactables" : "Filtrar solo contactables"}
+          className={`inline-flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-lg border transition-colors ${
+            contactableOnly
+              ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+              : "bg-white text-gray-600 border-gray-200 hover:bg-gray-50"
+          }`}
+        >
+          {contactableOnly ? <Phone className="w-4 h-4" /> : <PhoneOff className="w-4 h-4" />}
+          Contactables
+          <span className={`text-xs px-1.5 py-0.5 rounded-full font-bold ${
+            contactableOnly ? "bg-emerald-100 text-emerald-700" : "bg-gray-100 text-gray-500"
+          }`}>
+            {contactableCount}
+          </span>
+        </button>
       </div>
 
       {/* Table */}

@@ -233,8 +233,14 @@ export function ReposicionTable({
   ]);
   const [estadoFilter, setEstadoFilter] = useState<EstadoFilter>("Todos");
   const [searchQuery, setSearchQuery] = useState("");
+  const [contactableOnly, setContactableOnly] = useState(false);
   const [selected, setSelected] = useState<ReposicionPendiente | null>(null);
   const [localSelection, setLocalSelection] = useState<RowSelectionState>({});
+
+  const contactableCount = useMemo(
+    () => data.filter((r) => r.telefono && String(r.telefono).trim().length >= 7).length,
+    [data]
+  );
 
   const rowSelection = controlledSelection ?? localSelection;
   const setRowSelection = (updater: RowSelectionState | ((old: RowSelectionState) => RowSelectionState)) => {
@@ -251,6 +257,9 @@ export function ReposicionTable({
 
   const filteredData = useMemo(() => {
     let d = data;
+    if (contactableOnly) {
+      d = d.filter((r) => r.telefono && String(r.telefono).trim().length >= 7);
+    }
     if (estadoFilter !== "Todos") d = d.filter((r) => r.estado === estadoFilter);
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
@@ -262,7 +271,7 @@ export function ReposicionTable({
       );
     }
     return d;
-  }, [data, estadoFilter, searchQuery]);
+  }, [data, estadoFilter, searchQuery, contactableOnly]);
 
   const columns = useMemo(
     () => [
@@ -424,14 +433,33 @@ export function ReposicionTable({
         ))}
       </div>
 
-      {/* Búsqueda + export */}
-      <div className="flex items-center justify-between gap-4">
-        <SearchInput
-          value={searchQuery}
-          onChange={setSearchQuery}
-          placeholder="Buscar cliente o producto..."
-          className="w-72"
-        />
+      {/* Búsqueda + filtros + export */}
+      <div className="flex items-center justify-between gap-4 flex-wrap">
+        <div className="flex items-center gap-3 flex-wrap">
+          <SearchInput
+            value={searchQuery}
+            onChange={setSearchQuery}
+            placeholder="Buscar cliente o producto..."
+            className="w-72"
+          />
+          <button
+            onClick={() => setContactableOnly(!contactableOnly)}
+            title={contactableOnly ? "Mostrando solo contactables" : "Filtrar solo contactables"}
+            className={`inline-flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-lg border transition-colors ${
+              contactableOnly
+                ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                : "bg-white text-gray-600 border-gray-200 hover:bg-gray-50"
+            }`}
+          >
+            {contactableOnly ? <Phone className="w-4 h-4" /> : <Phone className="w-4 h-4 opacity-40" />}
+            Contactables
+            <span className={`text-xs px-1.5 py-0.5 rounded-full font-bold ${
+              contactableOnly ? "bg-emerald-100 text-emerald-700" : "bg-gray-100 text-gray-500"
+            }`}>
+              {contactableCount}
+            </span>
+          </button>
+        </div>
         <ExportButton data={filteredData} filename="reposicion_pendiente" />
       </div>
 
