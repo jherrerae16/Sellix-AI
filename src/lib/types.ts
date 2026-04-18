@@ -259,6 +259,134 @@ export interface ProductPrice {
 }
 
 // =============================================================
+// Therapeutic classification
+// =============================================================
+
+export interface ProductoClasificado {
+  codigo: string;
+  nombre: string;
+  principio_activo: string;
+  categoria_atc: string;
+  categoria_terapeutica: string;
+  subcategoria: string;
+  tipo_tratamiento: "cronico" | "agudo" | "ocasional" | "preventivo" | "no_aplica";
+  tratamiento: string;
+  es_cronico: boolean;
+  es_receta: boolean;
+}
+
+// =============================================================
+// Recurrencia de Compra (6 tipos de cliente)
+// =============================================================
+
+export type TipoClienteRecurrencia =
+  | "recurrente_producto"
+  | "recurrente_categoria"
+  | "recurrente_tratamiento"
+  | "frecuente_multicomprador"
+  | "ocasional"
+  | "inactivo";
+
+export interface ClienteRecurrencia {
+  cedula: string;
+  nombre: string;
+  telefono: string | null;
+  tipo_cliente: TipoClienteRecurrencia;
+  razon: string;
+  num_sesiones: number;
+  num_productos_diferentes: number;
+  num_categorias_diferentes: number;
+  num_tratamientos_diferentes: number;
+  ingreso_total: number;
+  ticket_promedio: number;
+  frecuencia_dias: number;
+  dias_sin_comprar: number;
+  ultima_compra: string;
+  primera_compra: string;
+  formato_preferido: "caja" | "blister" | "unidad";
+  dia_mes_promedio: number;
+  tiene_cronicos: boolean;
+  top_productos: { codigo: string; nombre: string; veces: number }[];
+  top_categorias: { categoria: string; veces: number }[];
+  top_tratamientos: { tratamiento: string; veces: number }[];
+}
+
+// =============================================================
+// Venta Cruzada v2 (3 niveles)
+// =============================================================
+
+export interface AssocProducto {
+  item_a: { codigo: string; nombre: string; categoria: string; tratamiento: string };
+  item_b: { codigo: string; nombre: string; categoria: string; tratamiento: string };
+  veces_juntos: number;
+  support: number;
+  confianza_ab: number;
+  confianza_ba: number;
+  lift: number;
+}
+
+export interface AssocGeneric {
+  item_a: string;
+  item_b: string;
+  veces_juntos: number;
+  support: number;
+  confianza_ab: number;
+  confianza_ba: number;
+  lift: number;
+}
+
+export interface VentasCruzadasV2 {
+  total_sesiones: number;
+  por_producto: AssocProducto[];
+  por_categoria: AssocGeneric[];
+  por_tratamiento: AssocGeneric[];
+}
+
+// =============================================================
+// Churn v2 (segmentación por tratamiento)
+// =============================================================
+
+export type TipoChurnV2 =
+  | "activo"
+  | "churn_riesgo"
+  | "churn_tratamiento"
+  | "churn_cronico"
+  | "churn_total"
+  | "downgrade"
+  | "alto_valor_inactivo";
+
+export interface ClienteChurnV2 {
+  cedula: string;
+  nombre: string;
+  telefono: string | null;
+  tipo_churn: TipoChurnV2;
+  nivel_riesgo: "alto" | "medio" | "bajo";
+  razon: string;
+  dias_sin_comprar: number;
+  frecuencia_dias: number;
+  churn_ratio: number;
+  total_compras: number;
+  ingreso_total: number;
+  ticket_cambio_pct: number;
+  ultima_compra: string;
+  tratamientos_abandonados: {
+    tratamiento: string;
+    es_cronico: boolean;
+    dias_sin_comprar: number;
+    compras_totales: number;
+  }[];
+  tratamientos_activos: string[];
+  tiene_churn_cronico: boolean;
+}
+
+export interface ChurnResumen {
+  total_clientes: number;
+  por_tipo: Record<string, number>;
+  por_riesgo: Record<string, number>;
+  top_tratamientos_abandonados: { tratamiento: string; clientes: number }[];
+}
+
+// =============================================================
 // CRM WhatsApp — Conversaciones, Pedidos, Pagos
 // =============================================================
 

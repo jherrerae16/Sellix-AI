@@ -9,6 +9,7 @@ import { join } from "path";
 import type {
   KPIsResumen, ClienteChurn, ReposicionPendiente, VentaCruzada,
   ClienteRFM, ProductoGancho, VentaMensual, TopProducto,
+  ClienteRecurrencia, VentasCruzadasV2, ClienteChurnV2, ChurnResumen,
 } from "./types";
 
 const DATA_DIR = join(process.cwd(), "data", "output");
@@ -55,4 +56,22 @@ export async function getVentasMensuales(): Promise<VentaMensual[]> {
 }
 export async function getTopProductos(): Promise<TopProducto[]> {
   return loadJSON<TopProducto[]>("top_productos.json", []);
+}
+
+// ── New enhanced datasets ────────────────────────────────────
+export async function getRecurrencia(): Promise<ClienteRecurrencia[]> {
+  return loadJSON<ClienteRecurrencia[]>("recurrencia_clientes.json", []);
+}
+export async function getVentasCruzadasV2(): Promise<VentasCruzadasV2> {
+  return loadJSON<VentasCruzadasV2>("ventas_cruzadas_v2.json", {
+    total_sesiones: 0, por_producto: [], por_categoria: [], por_tratamiento: [],
+  });
+}
+export async function getChurnV2(): Promise<ClienteChurnV2[]> {
+  return loadJSON<ClienteChurnV2[]>("churn_v2.json", []);
+}
+export async function getChurnResumen(): Promise<ChurnResumen> {
+  return loadJSON<ChurnResumen>("churn_resumen.json", {
+    total_clientes: 0, por_tipo: {}, por_riesgo: {}, top_tratamientos_abandonados: [],
+  });
 }
