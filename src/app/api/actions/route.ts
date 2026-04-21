@@ -1,7 +1,7 @@
 // =============================================================
-// Sellix AI — Next Best Action Engine
-// Analiza churn, reposición, RFM, venta cruzada y gancho
-// para generar acciones priorizadas con impacto estimado
+// Sellix AI — Next Best Action Engine (v2)
+// Usa churn_v2 y recurrencia_clientes para acciones más precisas
+// Distingue clientes CONTACTABLES vs totales para cifras realistas
 // =============================================================
 
 export const dynamic = "force-dynamic";
@@ -9,7 +9,9 @@ export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
 import { readFile } from "fs/promises";
 import { join } from "path";
-import type { NextAction } from "@/lib/types";
+import type {
+  NextAction, ClienteChurnV2, ClienteRecurrencia, ReposicionPendiente,
+} from "@/lib/types";
 
 const DATA_DIR = join(process.cwd(), "data", "output");
 
@@ -22,180 +24,174 @@ async function loadJSON<T>(filename: string): Promise<T> {
   }
 }
 
-interface ChurnRecord {
-  cedula: string; nombre: string; nivel_riesgo: string;
-  dias_sin_comprar: number; churn_score: number; frecuencia_promedio_dias: number;
+function isContactable(telefono: string | null | undefined): boolean {
+  return !!telefono && String(telefono).trim().length >= 7;
 }
 
-interface RepoRecord {
-  cedula: string; nombre: string; producto: string;
-  estado: string; dias_para_reposicion: number; ciclo_dias: number;
-}
-
-interface RFMRecord {
-  cedula: string; nombre: string; segmento: string;
-  clv_estimado_anual: number; monetary: number; frequency: number;
-}
-
-interface CruzadaRecord {
-  producto_base: string; producto_recomendado: string;
-  lift: number; confianza: number; incremento_ticket_estimado: number; veces_juntos: number;
-}
-
-interface GanchoRecord {
-  nombre: string; categoria_gancho: string;
-  indice_atraccion: number; poder_arrastre: number; ticket_promedio_en_sesion: number;
+function countContactable<T extends { telefono?: string | null }>(arr: T[]): number {
+  return arr.filter((x) => isContactable(x.telefono)).length;
 }
 
 export async function GET() {
   try {
-    const [churn, repo, rfm, cruzada, gancho] = await Promise.all([
-      loadJSON<ChurnRecord[]>("churn_clientes.json"),
-      loadJSON<RepoRecord[]>("reposicion_pendiente.json"),
-      loadJSON<RFMRecord[]>("clientes_rfm.json"),
-      loadJSON<CruzadaRecord[]>("ventas_cruzadas.json"),
-      loadJSON<GanchoRecord[]>("productos_gancho.json"),
+    const [churnV2, recurrencia, repo] = await Promise.all([
+      loadJSON<ClienteChurnV2[]>("churn_v2.json"),
+      loadJSON<ClienteRecurrencia[]>("recurrencia_clientes.json"),
+      loadJSON<ReposicionPendiente[]>("reposicion_pendiente.json"),
     ]);
 
     const actions: NextAction[] = [];
 
-    // ── 1. CHURN: Clientes en riesgo alto ──────────────────────
-    const churnAlto = churn.filter((c) => c.nivel_riesgo === "Alto");
-    const churnMedio = churn.filter((c) => c.nivel_riesgo === "Medio");
+    // ── 1. CHURN CRÓNICO — Abandono grave de tratamiento crónico ───
+    const churnCronico = churnV2.filter((c) => c.tipo_churn === "churn_cronico");
+    if (churnCronico.length > 0) {
+      const contactables = countContactable(churnCronico);
+      const ingresoPromedio = churnCronico.reduce((s, c) => s + c.ingreso_total / Math.max(c.total_compras, 1), 0) / churnCronico.length;
+      const potencial = Math.round(churnCronico.length * ingresoPromedio * 2);
+      const realista = Math.round(contactables * ingresoPromedio * 0.35 * 2);
 
-    if (churnAlto.length > 0) {
-      const avgTicket = 85000; // Estimated avg ticket for pharmacy
       actions.push({
-        id: "churn-alto-llamar",
+        id: "churn-cronico",
         category: "churn",
-        title: "Llamar clientes en riesgo crítico",
-        description: `${churnAlto.length} clientes llevan más del doble de su frecuencia habitual sin comprar. Cada día que pasa, es menos probable que regresen. Contactarlos esta semana puede recuperar hasta el 30% de ellos.`,
+        title: "Recuperar clientes que abandonaron tratamiento crónico",
+        description: `${churnCronico.length} clientes dejaron de comprar su medicación crónica. Esto es una señal de alto valor: compran de otro lado o interrumpieron tratamiento. Contactar ahora puede recuperarlos.`,
         priority: "critica",
-        clientes: churnAlto.length,
-        ingreso_estimado: Math.round(churnAlto.length * avgTicket * 0.3 * 3), // 30% recovery × 3 compras estimadas
+        clientes: churnCronico.length,
+        clientes_contactables: contactables,
+        ingreso_estimado: potencial,
+        ingreso_realista: realista,
         href: "/churn",
-        cta: "Ver clientes y crear campaña",
+        cta: "Ver clientes y contactar",
       });
     }
 
-    if (churnMedio.length > 0) {
+    // ── 2. CHURN TOTAL — Dejaron de comprar todo ───────────────────
+    const churnTotal = churnV2.filter((c) => c.tipo_churn === "churn_total");
+    if (churnTotal.length > 0) {
+      const contactables = countContactable(churnTotal);
+      const ingresoPromedio = 85000;
+      const realista = Math.round(contactables * ingresoPromedio * 0.15);
+
       actions.push({
-        id: "churn-medio-whatsapp",
+        id: "churn-total",
         category: "churn",
-        title: "Enviar WhatsApp a clientes en riesgo medio",
-        description: `${churnMedio.length} clientes están empezando a alejarse. Un mensaje de WhatsApp o email oportuno puede evitar que pasen a riesgo alto. Es más barato retener que recuperar.`,
+        title: "Reactivar clientes en churn total",
+        description: `${churnTotal.length} clientes ya no compran hace más de 6 meses. Una campaña de reactivación con oferta puede traer de vuelta al 15-20%.`,
         priority: "alta",
-        clientes: churnMedio.length,
-        ingreso_estimado: Math.round(churnMedio.length * 65000 * 0.4 * 2),
+        clientes: churnTotal.length,
+        clientes_contactables: contactables,
+        ingreso_estimado: Math.round(churnTotal.length * ingresoPromedio * 0.2),
+        ingreso_realista: realista,
         href: "/churn",
-        cta: "Enviar campaña de retención",
+        cta: "Ver clientes inactivos",
       });
     }
 
-    // ── 2. REPOSICIÓN: Vencidos y próximos ─────────────────────
-    const repoVencido = repo.filter((r) => r.estado === "Vencido");
-    const repoSemana = repo.filter((r) => r.estado === "Esta semana");
+    // ── 3. VIP INACTIVO — Alto valor bajó actividad ────────────────
+    const vipInactivo = churnV2.filter((c) => c.tipo_churn === "alto_valor_inactivo");
+    if (vipInactivo.length > 0) {
+      const contactables = countContactable(vipInactivo);
+      const valorTotal = vipInactivo.reduce((s, c) => s + c.ingreso_total, 0);
+      const realista = Math.round((valorTotal / vipInactivo.length) * contactables * 0.25);
 
+      actions.push({
+        id: "vip-inactivo",
+        category: "vip",
+        title: "Proteger VIPs en riesgo",
+        description: `${vipInactivo.length} clientes de alto valor ($${Math.round(valorTotal).toLocaleString("es-CO")} históricos) están perdiendo actividad. Prioridad máxima.`,
+        priority: "critica",
+        clientes: vipInactivo.length,
+        clientes_contactables: contactables,
+        ingreso_estimado: Math.round(valorTotal * 0.3),
+        ingreso_realista: realista,
+        href: "/churn",
+        cta: "Ver VIPs en riesgo",
+      });
+    }
+
+    // ── 4. REPOSICIÓN VENCIDA ──────────────────────────────────────
+    const repoVencido = repo.filter((r) => r.estado === "Vencido");
     if (repoVencido.length > 0) {
       const uniqueClients = new Set(repoVencido.map((r) => r.cedula)).size;
+      const contactables = new Set(repoVencido.filter((r) => isContactable(r.telefono)).map((r) => r.cedula)).size;
+      const ticketAvg = 55000;
+
       actions.push({
-        id: "repo-vencido-contactar",
+        id: "repo-vencido",
         category: "reposicion",
         title: "Contactar reposiciones vencidas",
-        description: `${repoVencido.length} productos de ${uniqueClients} clientes ya debieron haberse repuesto. Estos clientes probablemente compraron en otro lugar o interrumpieron su tratamiento. Contactarlos hoy.`,
+        description: `${repoVencido.length} productos de ${uniqueClients} clientes ya debieron reponerse. Si no actuamos, compran en otro lado.`,
         priority: "critica",
         clientes: uniqueClients,
-        ingreso_estimado: Math.round(repoVencido.length * 55000 * 0.5),
+        clientes_contactables: contactables,
+        ingreso_estimado: Math.round(repoVencido.length * ticketAvg * 0.5),
+        ingreso_realista: Math.round(contactables * ticketAvg * 0.55),
         href: "/reposicion",
-        cta: "Ver reposiciones vencidas",
+        cta: "Ver y enviar recordatorios",
       });
     }
 
+    // ── 5. REPOSICIÓN ESTA SEMANA ──────────────────────────────────
+    const repoSemana = repo.filter((r) => r.estado === "Esta semana");
     if (repoSemana.length > 0) {
       const uniqueClients = new Set(repoSemana.map((r) => r.cedula)).size;
+      const contactables = new Set(repoSemana.filter((r) => isContactable(r.telefono)).map((r) => r.cedula)).size;
+      const ticketAvg = 55000;
+
       actions.push({
-        id: "repo-semana-recordar",
+        id: "repo-semana",
         category: "reposicion",
-        title: "Enviar recordatorios de esta semana",
-        description: `${repoSemana.length} productos de ${uniqueClients} clientes vencen esta semana. Enviar un recordatorio preventivo antes de que se les agote el medicamento. Tasa de éxito esperada: 60-70%.`,
+        title: "Enviar recordatorios preventivos",
+        description: `${repoSemana.length} productos vencen esta semana. Un recordatorio oportuno tiene 60-70% de tasa de éxito.`,
         priority: "alta",
         clientes: uniqueClients,
-        ingreso_estimado: Math.round(repoSemana.length * 55000 * 0.65),
+        clientes_contactables: contactables,
+        ingreso_estimado: Math.round(repoSemana.length * ticketAvg * 0.65),
+        ingreso_realista: Math.round(contactables * ticketAvg * 0.7),
         href: "/reposicion",
-        cta: "Crear campaña de recordatorio",
+        cta: "Crear campaña preventiva",
       });
     }
 
-    // ── 3. VIP: Proteger clientes de mayor valor ───────────────
-    const vipEnRiesgo = rfm.filter((c) => c.segmento === "VIP" || c.segmento === "Leal")
-      .filter((c) => {
-        const ch = churn.find((x) => x.cedula === c.cedula);
-        return ch && (ch.nivel_riesgo === "Alto" || ch.nivel_riesgo === "Medio");
-      });
+    // ── 6. DOWNGRADE — Bajaron ticket ──────────────────────────────
+    const downgrade = churnV2.filter((c) => c.tipo_churn === "downgrade");
+    if (downgrade.length > 0) {
+      const contactables = countContactable(downgrade);
+      const perdidaPromedio = Math.abs(downgrade.reduce((s, c) => s + c.ticket_cambio_pct, 0) / downgrade.length);
 
-    if (vipEnRiesgo.length > 0) {
-      const clvTotal = vipEnRiesgo.reduce((s, c) => s + c.clv_estimado_anual, 0);
       actions.push({
-        id: "vip-proteger",
-        category: "vip",
-        title: "Proteger clientes VIP en riesgo",
-        description: `${vipEnRiesgo.length} de sus clientes más valiosos (VIP o Leales) también están en riesgo de abandono. Representan ${new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", maximumFractionDigits: 0 }).format(clvTotal)} en valor anual. Prioridad máxima.`,
-        priority: "critica",
-        clientes: vipEnRiesgo.length,
-        ingreso_estimado: Math.round(clvTotal * 0.4),
-        href: "/vip",
-        cta: "Ver clientes VIP en riesgo",
-      });
-    }
-
-    // Clientes "En desarrollo" con potencial
-    const enDesarrollo = rfm.filter((c) => c.segmento === "En desarrollo");
-    if (enDesarrollo.length > 0) {
-      const topDev = enDesarrollo.sort((a, b) => b.monetary - a.monetary).slice(0, 30);
-      actions.push({
-        id: "vip-desarrollar",
-        category: "vip",
-        title: "Impulsar clientes en desarrollo",
-        description: `${enDesarrollo.length} clientes tienen potencial pero baja frecuencia. Una oferta personalizada o recordatorio puede convertirlos en clientes leales. Enfóquese en los ${topDev.length} con mayor ticket.`,
+        id: "downgrade",
+        category: "churn",
+        title: "Investigar clientes con ticket reducido",
+        description: `${downgrade.length} clientes siguen comprando pero su ticket bajó ~${Math.round(perdidaPromedio)}%. Una oferta o atención puede recuperar el monto perdido.`,
         priority: "media",
-        clientes: topDev.length,
-        ingreso_estimado: Math.round(topDev.reduce((s, c) => s + c.monetary * 0.2, 0)),
-        href: "/vip",
-        cta: "Ver segmentación RFM",
+        clientes: downgrade.length,
+        clientes_contactables: contactables,
+        ingreso_estimado: Math.round(downgrade.length * 30000),
+        ingreso_realista: Math.round(contactables * 30000 * 0.4),
+        href: "/churn",
+        cta: "Ver clientes en downgrade",
       });
     }
 
-    // ── 4. VENTA CRUZADA: Top oportunidades ────────────────────
-    const topCruzada = cruzada.filter((c) => c.lift >= 2.0).sort((a, b) => b.incremento_ticket_estimado - a.incremento_ticket_estimado);
-    if (topCruzada.length > 0) {
-      const avgIncremento = topCruzada.slice(0, 20).reduce((s, c) => s + c.incremento_ticket_estimado, 0) / Math.min(topCruzada.length, 20);
-      actions.push({
-        id: "cruzada-implementar",
-        category: "venta_cruzada",
-        title: "Activar recomendaciones de venta cruzada",
-        description: `${topCruzada.length} pares de productos con Lift ≥ 2.0 — alta probabilidad de compra conjunta. Capacitar al cajero sobre los top ${Math.min(topCruzada.length, 10)} pares puede aumentar el ticket promedio en ~${new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", maximumFractionDigits: 0 }).format(avgIncremento)}.`,
-        priority: "alta",
-        clientes: churn.length,
-        ingreso_estimado: Math.round(avgIncremento * churn.length * 0.15),
-        href: "/cruzada",
-        cta: "Ver oportunidades de venta cruzada",
-      });
-    }
+    // ── 7. RECURRENTES CRÓNICOS — Oportunidad de fidelización ──────
+    const recurrentesCronicos = recurrencia.filter((r) => r.tipo_cliente === "recurrente_tratamiento");
+    if (recurrentesCronicos.length > 0) {
+      const contactables = countContactable(recurrentesCronicos);
+      const ticketAvg = recurrentesCronicos.reduce((s, r) => s + r.ticket_promedio, 0) / recurrentesCronicos.length;
 
-    // ── 5. PRODUCTOS GANCHO: Estrategia de tráfico ─────────────
-    const ganchoPrimario = gancho.filter((g) => g.categoria_gancho === "Gancho Primario");
-    if (ganchoPrimario.length > 0) {
-      const avgTicketGancho = ganchoPrimario.reduce((s, g) => s + g.ticket_promedio_en_sesion, 0) / ganchoPrimario.length;
       actions.push({
-        id: "gancho-promocion",
-        category: "gancho",
-        title: "Diseñar promoción con productos gancho",
-        description: `${ganchoPrimario.length} productos generan alto tráfico y arrastran ventas adicionales. Crear una promoción visible con estos productos puede incrementar el flujo de clientes. Ticket promedio cuando aparecen: ${new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", maximumFractionDigits: 0 }).format(avgTicketGancho)}.`,
+        id: "fidelizar-cronicos",
+        category: "vip",
+        title: "Fidelizar clientes de tratamiento crónico",
+        description: `${recurrentesCronicos.length} clientes compran crónicos regularmente. Ofrecer beneficios (descuento por lealtad, suscripción) asegura su recompra por meses.`,
         priority: "media",
-        clientes: 0,
-        ingreso_estimado: Math.round(ganchoPrimario.length * avgTicketGancho * 0.1),
-        href: "/gancho",
-        cta: "Ver productos gancho",
+        clientes: recurrentesCronicos.length,
+        clientes_contactables: contactables,
+        ingreso_estimado: Math.round(recurrentesCronicos.length * ticketAvg * 3),
+        ingreso_realista: Math.round(contactables * ticketAvg * 3),
+        href: "/vip",
+        cta: "Ver clientes crónicos",
       });
     }
 
@@ -204,19 +200,21 @@ export async function GET() {
     actions.sort((a, b) => priorityOrder[a.priority] - priorityOrder[b.priority]);
 
     // Summary
-    const totalIngreso = actions.reduce((s, a) => s + a.ingreso_estimado, 0);
-    const totalClientes = new Set(
-      [...churnAlto, ...churnMedio, ...repoVencido, ...repoSemana, ...vipEnRiesgo]
-        .map((c) => "cedula" in c ? c.cedula : "")
-    ).size;
+    const totalContactables = actions.reduce((s, a) => s + a.clientes_contactables, 0);
+    const totalClientes = actions.reduce((s, a) => s + a.clientes, 0);
+    const ingresoRealista = actions.reduce((s, a) => s + a.ingreso_realista, 0);
+    const ingresoPotencial = actions.reduce((s, a) => s + a.ingreso_estimado, 0);
 
     return NextResponse.json({
       actions,
       summary: {
         total_acciones: actions.length,
-        total_clientes_impactados: totalClientes,
-        ingreso_potencial_total: totalIngreso,
+        total_clientes: totalClientes,
+        total_contactables: totalContactables,
+        ingreso_potencial: ingresoPotencial,
+        ingreso_realista: ingresoRealista,
         acciones_criticas: actions.filter((a) => a.priority === "critica").length,
+        pct_contactable: totalClientes > 0 ? Math.round((totalContactables / totalClientes) * 100) : 0,
       },
     });
   } catch (err) {

@@ -219,9 +219,26 @@ export interface NextAction {
   description: string;
   priority: ActionPriority;
   clientes: number;
+  clientes_contactables: number;
   ingreso_estimado: number;
+  ingreso_realista: number;
   href: string;
   cta: string;
+}
+
+export interface PromotionMatch {
+  cedula: string;
+  nombre: string;
+  telefono: string | null;
+  contactable: boolean;
+  score: number;
+  razones: string[];
+  tipo_cliente: string;
+  ultima_compra: string;
+  ingreso_total: number;
+  ticket_promedio: number;
+  veces_producto: number;
+  veces_categoria: number;
 }
 
 // =============================================================
