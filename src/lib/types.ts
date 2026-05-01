@@ -32,6 +32,7 @@ export interface ReposicionPendiente {
   cedula: string;
   nombre: string;
   telefono: string | null;
+  codigo?: string;             // Product code (added for promotion matching)
   producto: string;
   ultima_compra: string; // ISO date string
   ciclo_dias: number;

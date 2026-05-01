@@ -15,6 +15,39 @@ import type {
 
 const DATA_DIR = join(process.cwd(), "data", "output");
 
+// ── Conversion rates by action type ────────────────────────────
+// Industry benchmarks for pharmacy WhatsApp campaigns.
+// "realistic" = portion of contactable clients expected to convert.
+// "theoretical" assumes 100% reach (impossible, used as upper bound).
+const CONVERSION = {
+  // High recovery: chronic abandonment is urgent, customers usually want to continue.
+  CHURN_CRONICO_RATE: 0.35,
+  CHURN_CRONICO_FUTURE_PURCHASES: 2,
+
+  // Low recovery: total churn means customer is gone, hard to bring back.
+  CHURN_TOTAL_RATE: 0.15,
+
+  // VIP recovery: high-value customers are usually retainable.
+  VIP_INACTIVO_RATE: 0.25,
+
+  // Replenishment overdue: customer needs the medicine, just forgot or shopped elsewhere.
+  REPO_VENCIDA_RATE: 0.55,
+
+  // Replenishment this week: preventive, very high success rate.
+  REPO_SEMANA_RATE: 0.70,
+
+  // Downgrade recovery: customer still active, lift back to old ticket.
+  DOWNGRADE_RATE: 0.40,
+
+  // Chronic recurrent: incremental revenue from loyalty program (extra purchases).
+  // 20% will adopt the program, ×3 ciclos extra over 6 months.
+  CRONICOS_LOYALTY_ADOPTION: 0.20,
+  CRONICOS_LOYALTY_EXTRA_CYCLES: 3,
+} as const;
+
+const DEFAULT_PHARMACY_TICKET = 85000;
+const DEFAULT_REPO_TICKET = 55000;
+
 async function loadJSON<T>(filename: string): Promise<T> {
   try {
     const raw = await readFile(join(DATA_DIR, filename), "utf-8");
@@ -46,9 +79,13 @@ export async function GET() {
     const churnCronico = churnV2.filter((c) => c.tipo_churn === "churn_cronico");
     if (churnCronico.length > 0) {
       const contactables = countContactable(churnCronico);
-      const ingresoPromedio = churnCronico.reduce((s, c) => s + c.ingreso_total / Math.max(c.total_compras, 1), 0) / churnCronico.length;
-      const potencial = Math.round(churnCronico.length * ingresoPromedio * 2);
-      const realista = Math.round(contactables * ingresoPromedio * 0.35 * 2);
+      const ingresoPromedio = churnCronico.reduce(
+        (s, c) => s + c.ingreso_total / Math.max(c.total_compras, 1), 0,
+      ) / churnCronico.length;
+      const teorico = Math.round(churnCronico.length * ingresoPromedio * CONVERSION.CHURN_CRONICO_FUTURE_PURCHASES);
+      const realista = Math.round(
+        contactables * ingresoPromedio * CONVERSION.CHURN_CRONICO_RATE * CONVERSION.CHURN_CRONICO_FUTURE_PURCHASES,
+      );
 
       actions.push({
         id: "churn-cronico",
@@ -58,7 +95,7 @@ export async function GET() {
         priority: "critica",
         clientes: churnCronico.length,
         clientes_contactables: contactables,
-        ingreso_estimado: potencial,
+        ingreso_estimado: teorico,
         ingreso_realista: realista,
         href: "/churn",
         cta: "Ver clientes y contactar",
@@ -69,8 +106,8 @@ export async function GET() {
     const churnTotal = churnV2.filter((c) => c.tipo_churn === "churn_total");
     if (churnTotal.length > 0) {
       const contactables = countContactable(churnTotal);
-      const ingresoPromedio = 85000;
-      const realista = Math.round(contactables * ingresoPromedio * 0.15);
+      const teorico = Math.round(churnTotal.length * DEFAULT_PHARMACY_TICKET * 0.2);
+      const realista = Math.round(contactables * DEFAULT_PHARMACY_TICKET * CONVERSION.CHURN_TOTAL_RATE);
 
       actions.push({
         id: "churn-total",
@@ -80,7 +117,7 @@ export async function GET() {
         priority: "alta",
         clientes: churnTotal.length,
         clientes_contactables: contactables,
-        ingreso_estimado: Math.round(churnTotal.length * ingresoPromedio * 0.2),
+        ingreso_estimado: teorico,
         ingreso_realista: realista,
         href: "/churn",
         cta: "Ver clientes inactivos",
@@ -92,7 +129,9 @@ export async function GET() {
     if (vipInactivo.length > 0) {
       const contactables = countContactable(vipInactivo);
       const valorTotal = vipInactivo.reduce((s, c) => s + c.ingreso_total, 0);
-      const realista = Math.round((valorTotal / vipInactivo.length) * contactables * 0.25);
+      const ticketPromedio = vipInactivo.length > 0 ? valorTotal / vipInactivo.length : 0;
+      const teorico = Math.round(valorTotal * 0.3);
+      const realista = Math.round(ticketPromedio * contactables * CONVERSION.VIP_INACTIVO_RATE);
 
       actions.push({
         id: "vip-inactivo",
@@ -102,7 +141,7 @@ export async function GET() {
         priority: "critica",
         clientes: vipInactivo.length,
         clientes_contactables: contactables,
-        ingreso_estimado: Math.round(valorTotal * 0.3),
+        ingreso_estimado: teorico,
         ingreso_realista: realista,
         href: "/churn",
         cta: "Ver VIPs en riesgo",
@@ -113,8 +152,9 @@ export async function GET() {
     const repoVencido = repo.filter((r) => r.estado === "Vencido");
     if (repoVencido.length > 0) {
       const uniqueClients = new Set(repoVencido.map((r) => r.cedula)).size;
-      const contactables = new Set(repoVencido.filter((r) => isContactable(r.telefono)).map((r) => r.cedula)).size;
-      const ticketAvg = 55000;
+      const contactables = new Set(
+        repoVencido.filter((r) => isContactable(r.telefono)).map((r) => r.cedula),
+      ).size;
 
       actions.push({
         id: "repo-vencido",
@@ -124,8 +164,8 @@ export async function GET() {
         priority: "critica",
         clientes: uniqueClients,
         clientes_contactables: contactables,
-        ingreso_estimado: Math.round(repoVencido.length * ticketAvg * 0.5),
-        ingreso_realista: Math.round(contactables * ticketAvg * 0.55),
+        ingreso_estimado: Math.round(repoVencido.length * DEFAULT_REPO_TICKET * 0.5),
+        ingreso_realista: Math.round(contactables * DEFAULT_REPO_TICKET * CONVERSION.REPO_VENCIDA_RATE),
         href: "/reposicion",
         cta: "Ver y enviar recordatorios",
       });
@@ -135,8 +175,9 @@ export async function GET() {
     const repoSemana = repo.filter((r) => r.estado === "Esta semana");
     if (repoSemana.length > 0) {
       const uniqueClients = new Set(repoSemana.map((r) => r.cedula)).size;
-      const contactables = new Set(repoSemana.filter((r) => isContactable(r.telefono)).map((r) => r.cedula)).size;
-      const ticketAvg = 55000;
+      const contactables = new Set(
+        repoSemana.filter((r) => isContactable(r.telefono)).map((r) => r.cedula),
+      ).size;
 
       actions.push({
         id: "repo-semana",
@@ -146,8 +187,8 @@ export async function GET() {
         priority: "alta",
         clientes: uniqueClients,
         clientes_contactables: contactables,
-        ingreso_estimado: Math.round(repoSemana.length * ticketAvg * 0.65),
-        ingreso_realista: Math.round(contactables * ticketAvg * 0.7),
+        ingreso_estimado: Math.round(repoSemana.length * DEFAULT_REPO_TICKET * 0.65),
+        ingreso_realista: Math.round(contactables * DEFAULT_REPO_TICKET * CONVERSION.REPO_SEMANA_RATE),
         href: "/reposicion",
         cta: "Crear campaña preventiva",
       });
@@ -157,7 +198,9 @@ export async function GET() {
     const downgrade = churnV2.filter((c) => c.tipo_churn === "downgrade");
     if (downgrade.length > 0) {
       const contactables = countContactable(downgrade);
-      const perdidaPromedio = Math.abs(downgrade.reduce((s, c) => s + c.ticket_cambio_pct, 0) / downgrade.length);
+      const perdidaPromedio = Math.abs(
+        downgrade.reduce((s, c) => s + c.ticket_cambio_pct, 0) / downgrade.length,
+      );
 
       actions.push({
         id: "downgrade",
@@ -168,28 +211,37 @@ export async function GET() {
         clientes: downgrade.length,
         clientes_contactables: contactables,
         ingreso_estimado: Math.round(downgrade.length * 30000),
-        ingreso_realista: Math.round(contactables * 30000 * 0.4),
+        ingreso_realista: Math.round(contactables * 30000 * CONVERSION.DOWNGRADE_RATE),
         href: "/churn",
         cta: "Ver clientes en downgrade",
       });
     }
 
-    // ── 7. RECURRENTES CRÓNICOS — Oportunidad de fidelización ──────
+    // ── 7. RECURRENTES CRÓNICOS — Programa de fidelización ─────────
+    // Realistic: only 20% adopt loyalty program, gives ~3 extra cycles
+    // (the rest already buy regularly, so no incremental revenue from them)
     const recurrentesCronicos = recurrencia.filter((r) => r.tipo_cliente === "recurrente_tratamiento");
     if (recurrentesCronicos.length > 0) {
       const contactables = countContactable(recurrentesCronicos);
       const ticketAvg = recurrentesCronicos.reduce((s, r) => s + r.ticket_promedio, 0) / recurrentesCronicos.length;
 
+      // Theoretical: every contactable does 3 extra purchases (impossible)
+      const teorico = Math.round(recurrentesCronicos.length * ticketAvg * 1.0);
+      // Realistic: 20% adoption × 3 extra cycles
+      const realista = Math.round(
+        contactables * ticketAvg * CONVERSION.CRONICOS_LOYALTY_ADOPTION * CONVERSION.CRONICOS_LOYALTY_EXTRA_CYCLES,
+      );
+
       actions.push({
         id: "fidelizar-cronicos",
         category: "vip",
         title: "Fidelizar clientes de tratamiento crónico",
-        description: `${recurrentesCronicos.length} clientes compran crónicos regularmente. Ofrecer beneficios (descuento por lealtad, suscripción) asegura su recompra por meses.`,
+        description: `${recurrentesCronicos.length} clientes compran crónicos regularmente. Un programa de lealtad (descuentos, suscripción) suele tener 20% de adopción y suma ciclos extra de compra.`,
         priority: "media",
         clientes: recurrentesCronicos.length,
         clientes_contactables: contactables,
-        ingreso_estimado: Math.round(recurrentesCronicos.length * ticketAvg * 3),
-        ingreso_realista: Math.round(contactables * ticketAvg * 3),
+        ingreso_estimado: teorico,
+        ingreso_realista: realista,
         href: "/vip",
         cta: "Ver clientes crónicos",
       });
@@ -220,7 +272,7 @@ export async function GET() {
   } catch (err) {
     return NextResponse.json(
       { error: err instanceof Error ? err.message : "Error generando acciones" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

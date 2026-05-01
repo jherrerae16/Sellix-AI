@@ -6,7 +6,7 @@
 // con mayor probabilidad de comprar → envía campaña
 // =============================================================
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import {
   X, Search, Package, Sparkles, Phone, PhoneOff, Loader2,
   Send, CheckCircle2, AlertCircle, TrendingUp, Tag, ArrowRight,
@@ -20,6 +20,33 @@ interface Props {
 }
 
 type Step = "producto" | "config" | "clientes" | "mensaje" | "enviado";
+
+// Confirm bulk send if recipients exceed this threshold
+const BULK_CONFIRM_THRESHOLD = 20;
+
+/**
+ * Returns the most representative price for a product:
+ * box price if available, else unit price, else 0.
+ */
+function getBasePrice(p: ProductPrice | null): number {
+  if (!p) return 0;
+  return p.precio_caja || p.precio_unidad || 0;
+}
+
+/**
+ * Sanitize a string used in WhatsApp messages.
+ * - Trims whitespace
+ * - Falls back to "Cliente" if empty
+ * - Removes characters that could break formatting (backticks, asterisks at edges)
+ */
+function safeName(name: string | null | undefined): string {
+  if (!name) return "Cliente";
+  const cleaned = name
+    .replace(/[`]/g, "")            // remove backticks
+    .replace(/^\*+|\*+$/g, "")     // strip leading/trailing asterisks
+    .trim();
+  return cleaned || "Cliente";
+}
 
 export function PromotionModal({ isOpen, onClose }: Props) {
   const [step, setStep] = useState<Step>("producto");
@@ -58,26 +85,45 @@ export function PromotionModal({ isOpen, onClose }: Props) {
     }
   }, [isOpen]);
 
-  // Search products
-  const searchProducts = useCallback(async (q: string) => {
+  // Search products with AbortController to prevent stale results
+  const searchAbortRef = useRef<AbortController | null>(null);
+
+  const searchProducts = useCallback(async (q: string, signal: AbortSignal) => {
     if (q.length < 2) { setResults([]); return; }
     setLoadingSearch(true);
     try {
-      const res = await fetch(`/api/products/search?q=${encodeURIComponent(q)}&limit=8&online=false`);
+      const res = await fetch(
+        `/api/products/search?q=${encodeURIComponent(q)}&limit=8&online=false`,
+        { signal },
+      );
+      if (signal.aborted) return;
       const data = await res.json();
+      if (signal.aborted) return;
       setResults(data.results || []);
-    } catch { /* ignore */ }
-    finally { setLoadingSearch(false); }
+    } catch (err) {
+      // Ignore aborted requests
+      if (err instanceof DOMException && err.name === "AbortError") return;
+    } finally {
+      if (!signal.aborted) setLoadingSearch(false);
+    }
   }, []);
 
   useEffect(() => {
-    const t = setTimeout(() => searchProducts(query), 300);
-    return () => clearTimeout(t);
+    // Cancel previous in-flight request
+    searchAbortRef.current?.abort();
+    const ctrl = new AbortController();
+    searchAbortRef.current = ctrl;
+
+    const t = setTimeout(() => searchProducts(query, ctrl.signal), 300);
+    return () => {
+      clearTimeout(t);
+      ctrl.abort();
+    };
   }, [query, searchProducts]);
 
   const selectProduct = (p: ProductPrice) => {
     setSelectedProduct(p);
-    setPrecioPromo(Math.round((p.precio_caja || p.precio_unidad || 0) * 0.85));
+    setPrecioPromo(Math.round(getBasePrice(p) * 0.85)); // 15% default discount
     setStep("config");
   };
 
@@ -128,17 +174,16 @@ export function PromotionModal({ isOpen, onClose }: Props) {
 
   const goToMessage = () => {
     if (!selectedProduct) return;
-    // Pre-fill message template
-    const descuento = (selectedProduct.precio_caja || 0) > 0
-      ? Math.round((((selectedProduct.precio_caja || 0) - precioPromo) / (selectedProduct.precio_caja || 0)) * 100)
-      : 0;
-    const ahorro = (selectedProduct.precio_caja || 0) - precioPromo;
+    const basePrice = getBasePrice(selectedProduct);
+    const descuento = basePrice > 0 ? Math.round(((basePrice - precioPromo) / basePrice) * 100) : 0;
+    const ahorro = Math.max(0, basePrice - precioPromo);
+
     const tpl = `¡Hola {{nombre}}! 👋
 
 Tenemos una oferta especial para ti en *${selectedProduct.nombre}*
 
 💰 Precio especial: *${formatCOP(precioPromo)}* (${descuento}% OFF)
-📦 Antes: ${formatCOP((selectedProduct.precio_caja || 0))}
+📦 Antes: ${formatCOP(basePrice)}
 🎁 Te ahorras: ${formatCOP(ahorro)}
 
 ⏰ Oferta válida por ${vigencia} días. Solo ${cantidadDisponible} unidades disponibles.
@@ -151,14 +196,23 @@ Droguería Super Ofertas 💊`;
   };
 
   const sendCampaign = async () => {
-    setSending(true);
     const recipients = matches
       .filter((m) => selectedClients.has(m.cedula))
       .map((m) => ({
         cedula: m.cedula,
-        nombre: m.nombre || "Cliente",
+        nombre: safeName(m.nombre),
         telefono: m.telefono,
       }));
+
+    // Confirm bulk sends to prevent accidental mass campaigns
+    if (recipients.length > BULK_CONFIRM_THRESHOLD) {
+      const ok = window.confirm(
+        `Vas a enviar mensajes a ${recipients.length} clientes. ¿Confirmas?`
+      );
+      if (!ok) return;
+    }
+
+    setSending(true);
 
     try {
       const res = await fetch("/api/campaigns/send", {
@@ -270,7 +324,7 @@ Droguería Super Ofertas 💊`;
                         </div>
                       </div>
                       <div className="text-right flex-shrink-0 ml-3">
-                        <p className="text-sm font-bold text-gray-900">{formatCOP(p.precio_caja || p.precio_unidad || 0)}</p>
+                        <p className="text-sm font-bold text-gray-900">{formatCOP(getBasePrice(p))}</p>
                         <ArrowRight className="w-4 h-4 text-gray-400 group-hover:text-indigo-600 ml-auto mt-1" />
                       </div>
                     </button>
@@ -286,13 +340,15 @@ Droguería Super Ofertas 💊`;
             )}
 
             {/* STEP 2: Configure */}
-            {step === "config" && selectedProduct && (
+            {step === "config" && selectedProduct && (() => {
+              const basePrice = getBasePrice(selectedProduct);
+              return (
               <div className="space-y-5">
                 <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-4">
                   <p className="text-xs font-semibold text-indigo-600 uppercase tracking-wider">Producto</p>
                   <p className="text-sm font-bold text-gray-900 mt-1">{selectedProduct.nombre}</p>
                   <p className="text-xs text-gray-500 mt-1">
-                    Precio actual: {formatCOP((selectedProduct.precio_caja || 0) || selectedProduct.precio_unidad || 0)}
+                    Precio actual: {formatCOP(basePrice)}
                   </p>
                 </div>
 
@@ -331,15 +387,16 @@ Droguería Super Ofertas 💊`;
                     onChange={(e) => setPrecioPromo(Number(e.target.value))}
                     className="mt-1 w-full px-3 py-2.5 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:bg-white focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500 outline-none font-semibold"
                   />
-                  {(selectedProduct.precio_caja || 0) > 0 && precioPromo > 0 && precioPromo < (selectedProduct.precio_caja || 0) && (
+                  {basePrice > 0 && precioPromo > 0 && precioPromo < basePrice && (
                     <p className="mt-2 text-xs text-emerald-600 font-semibold">
-                      Descuento: {Math.round((((selectedProduct.precio_caja || 0) - precioPromo) / (selectedProduct.precio_caja || 0)) * 100)}%
-                      — Ahorro cliente: {formatCOP((selectedProduct.precio_caja || 0) - precioPromo)}
+                      Descuento: {Math.round(((basePrice - precioPromo) / basePrice) * 100)}%
+                      — Ahorro cliente: {formatCOP(basePrice - precioPromo)}
                     </p>
                   )}
                 </div>
               </div>
-            )}
+              );
+            })()}
 
             {/* STEP 3: Clients */}
             {step === "clientes" && (

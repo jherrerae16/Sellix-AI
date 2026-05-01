@@ -449,6 +449,7 @@ function analyze(rows: SaleRow[]): ETLResult {
         cedula,
         nombre: pRows[0].nombre,
         telefono: pRows[0].telefono,
+        codigo: pRows[0].codigo,
         producto: prod,
         ultima_compra: ultima,
         ciclo_dias: Math.round(mean * 10) / 10,
