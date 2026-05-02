@@ -6,7 +6,7 @@
 **Fecha:** Abril 2026
 **Autor:** Juan David Herrera
 **Empresa:** Next AI Tech LLC
-**Estado:** Producto en producción — https://sellix-ai-mvp.vercel.app
+**Estado:** Producto en producción — https://sellix-ai.com
 **Tipo de producto:** SaaS · CRM Conversacional · Revenue Intelligence · IA Comercial
 **Repositorio:** github.com/jherrerae16/SellixAI-MVP
 **Última actualización:** 21/04/2026 — Estado de producción tras code review v3
@@ -565,4 +565,4 @@ COMMISSION_RATE=0.05
 *Documento preparado por Next AI Tech LLC · Miami, Florida*
 *Cliente piloto: Droguería Super Ofertas · Barranquilla, Colombia*
 *Sellix AI v3.0 · Abril 2026*
-*Producción: https://sellix-ai-mvp.vercel.app*
+*Producción: https://sellix-ai.com*
