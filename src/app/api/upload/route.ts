@@ -283,7 +283,9 @@ export async function GET() {
   `;
 
   const [{ count: ventasCount }] = await sql<{ count: number }[]>`
-    SELECT COUNT(*)::int as count FROM ventas WHERE tenant_id = ${tenantId}
+    SELECT COUNT(*)::int as count FROM ventas v
+    LEFT JOIN uploads u ON u.id = v.upload_id
+    WHERE v.tenant_id = ${tenantId} AND (u.active IS NULL OR u.active = true)
   `;
   const [{ count: clientesCount }] = await sql<{ count: number }[]>`
     SELECT COUNT(*)::int as count FROM clientes WHERE tenant_id = ${tenantId}

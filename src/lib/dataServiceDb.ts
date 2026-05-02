@@ -59,6 +59,7 @@ interface VentaRow {
 
 async function getAllVentas(tenantId: string): Promise<VentaRow[]> {
   return cached(`ventas:${tenantId}`, async () => {
+    // Solo incluye ventas de uploads activos (o ventas sin upload_id, por compat)
     const rows = await sql<VentaRow[]>`
       SELECT
         v.cedula, c.nombre, c.telefono, v.fecha, v.codigo, v.producto,
@@ -67,7 +68,9 @@ async function getAllVentas(tenantId: string): Promise<VentaRow[]> {
       FROM ventas v
       LEFT JOIN clientes c ON c.tenant_id = v.tenant_id AND c.cedula = v.cedula
       LEFT JOIN productos_master pm ON pm.codigo = v.codigo
+      LEFT JOIN uploads u ON u.id = v.upload_id
       WHERE v.tenant_id = ${tenantId}
+        AND (u.active IS NULL OR u.active = true)
       ORDER BY v.fecha
     `;
     return rows.map((r) => ({ ...r, fecha: new Date(r.fecha) }));
