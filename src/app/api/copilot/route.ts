@@ -8,9 +8,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { GoogleGenerativeAI, type FunctionDeclaration, SchemaType } from "@google/generative-ai";
 import { readFile } from "fs/promises";
 import { join } from "path";
+import { getReposicionesPendientes } from "@/lib/dataService";
 
 const DATA_DIR = join(process.cwd(), "data", "output");
 
+// loadJSON usado solo para datasets legacy (churn_clientes.json)
 async function loadJSON<T>(filename: string): Promise<T> {
   const raw = await readFile(join(DATA_DIR, filename), "utf-8");
   return JSON.parse(raw);
@@ -150,7 +152,7 @@ async function executeTool(name: string, args: Record<string, unknown>): Promise
       };
     }
     case "get_reposiciones": {
-      const data = await loadJSON<RepoRecord[]>("reposicion_pendiente.json");
+      const data = (await getReposicionesPendientes()) as unknown as RepoRecord[];
       let filtered = data;
       if (args.estado && args.estado !== "Todos") {
         filtered = data.filter((r) => r.estado === args.estado);

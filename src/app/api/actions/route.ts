@@ -7,13 +7,8 @@
 export const dynamic = "force-dynamic";
 
 import { NextResponse } from "next/server";
-import { readFile } from "fs/promises";
-import { join } from "path";
-import type {
-  NextAction, ClienteChurnV2, ClienteRecurrencia, ReposicionPendiente,
-} from "@/lib/types";
-
-const DATA_DIR = join(process.cwd(), "data", "output");
+import { getChurnV2, getRecurrencia, getReposicionesPendientes } from "@/lib/dataService";
+import type { NextAction } from "@/lib/types";
 
 // ── Conversion rates by action type ────────────────────────────
 // Industry benchmarks for pharmacy WhatsApp campaigns.
@@ -48,15 +43,6 @@ const CONVERSION = {
 const DEFAULT_PHARMACY_TICKET = 85000;
 const DEFAULT_REPO_TICKET = 55000;
 
-async function loadJSON<T>(filename: string): Promise<T> {
-  try {
-    const raw = await readFile(join(DATA_DIR, filename), "utf-8");
-    return JSON.parse(raw);
-  } catch {
-    return [] as unknown as T;
-  }
-}
-
 function isContactable(telefono: string | null | undefined): boolean {
   return !!telefono && String(telefono).trim().length >= 7;
 }
@@ -68,9 +54,9 @@ function countContactable<T extends { telefono?: string | null }>(arr: T[]): num
 export async function GET() {
   try {
     const [churnV2, recurrencia, repo] = await Promise.all([
-      loadJSON<ClienteChurnV2[]>("churn_v2.json"),
-      loadJSON<ClienteRecurrencia[]>("recurrencia_clientes.json"),
-      loadJSON<ReposicionPendiente[]>("reposicion_pendiente.json"),
+      getChurnV2(),
+      getRecurrencia(),
+      getReposicionesPendientes(),
     ]);
 
     const actions: NextAction[] = [];

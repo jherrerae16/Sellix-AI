@@ -15,16 +15,12 @@
 // =============================================================
 
 import { NextRequest, NextResponse } from "next/server";
-import { readFile } from "fs/promises";
-import { join } from "path";
-import type {
-  ClienteRecurrencia, ProductoClasificado, ReposicionPendiente,
-  PromotionMatch,
-} from "@/lib/types";
+import {
+  getRecurrencia, getProductosClasificados, getReposicionesPendientes,
+} from "@/lib/dataService";
+import type { PromotionMatch, ReposicionPendiente } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
-
-const DATA_DIR = join(process.cwd(), "data", "output");
 
 // ── Scoring constants (tune here, not in code) ─────────────────
 const SCORE = {
@@ -43,15 +39,6 @@ const SCORE = {
 } as const;
 
 const MIN_FUZZY_MATCH_LEN = 5; // require at least 5-char tokens for fuzzy match
-
-async function loadJSON<T>(name: string, fallback: T): Promise<T> {
-  try {
-    const raw = await readFile(join(DATA_DIR, name), "utf-8");
-    return JSON.parse(raw);
-  } catch {
-    return fallback;
-  }
-}
 
 interface MatchRequest {
   codigo?: string;
@@ -111,9 +98,9 @@ export async function POST(request: NextRequest) {
     const fuzzyToken = nombreProducto ? getFuzzyToken(nombreProducto) : null;
 
     const [recurrencia, clasificados, reposicion] = await Promise.all([
-      loadJSON<ClienteRecurrencia[]>("recurrencia_clientes.json", []),
-      loadJSON<ProductoClasificado[]>("productos_clasificados.json", []),
-      loadJSON<ReposicionPendiente[]>("reposicion_pendiente.json", []),
+      getRecurrencia(),
+      getProductosClasificados(),
+      getReposicionesPendientes(),
     ]);
 
     // Find product classification

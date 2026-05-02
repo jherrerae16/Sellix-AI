@@ -19,7 +19,10 @@
       "Bash(mkdir -p /Users/jdh/Desktop/SellixAI-MVP/src/app/api/copilot)",
       "Bash(npx tsc:*)",
       "Bash(mkdir -p /Users/jdh/Desktop/SellixAI-MVP/.claude/skills/ui-ux-pro-max)",
-      "Bash(cp -r /tmp/ui-ux-pro-max-skill/src/ui-ux-pro-max/* /Users/jdh/Desktop/SellixAI-MVP/.claude/skills/ui-ux-pro-max/)"
+      "Bash(cp -r /tmp/ui-ux-pro-max-skill/src/ui-ux-pro-max/* /Users/jdh/Desktop/SellixAI-MVP/.claude/skills/ui-ux-pro-max/)",
+      "Bash(brew install *)",
+      "Bash(javac -d out src/entity/*.java src/boundary/*.java src/controller/*.java src/Main.java)",
+      "Bash(java -cp out Main)"
     ]
   }
 }
