@@ -4,6 +4,7 @@
 // =============================================================
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 60;
 
 import { getRecurrencia } from "@/lib/dataService";
 import { RecurrenciaTable } from "@/components/tables/RecurrenciaTable";

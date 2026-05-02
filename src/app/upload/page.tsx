@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import {
   Upload, FileSpreadsheet, CheckCircle, AlertCircle,
   Trash2, Loader2, Database, Sparkles,
@@ -24,6 +25,7 @@ interface DataStats {
 }
 
 export default function UploadPage() {
+  const router = useRouter();
   const [files, setFiles] = useState<FileEntry[]>([]);
   const [isDragging, setIsDragging] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -70,6 +72,7 @@ export default function UploadPage() {
         text: `${file.name} cargado — ${parts.join(" · ")}`,
       });
       await loadFiles();
+      router.refresh(); // invalida Server Components de TODAS las pestañas
     } catch (e) {
       setUploadMsg({ type: "err", text: e instanceof Error ? e.message : "Error inesperado" });
     } finally {
@@ -87,6 +90,7 @@ export default function UploadPage() {
       });
       if (!res.ok) throw new Error("No se pudo actualizar");
       await loadFiles();
+      router.refresh();
     } catch (e) {
       setUploadMsg({ type: "err", text: e instanceof Error ? e.message : "Error" });
     } finally {
@@ -106,6 +110,7 @@ export default function UploadPage() {
       if (!res.ok) throw new Error("No se pudo eliminar");
       setUploadMsg({ type: "ok", text: `${f.name} eliminado` });
       await loadFiles();
+      router.refresh();
     } catch (e) {
       setUploadMsg({ type: "err", text: e instanceof Error ? e.message : "Error" });
     } finally {

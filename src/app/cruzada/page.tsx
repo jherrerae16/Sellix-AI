@@ -1,4 +1,5 @@
 export const dynamic = "force-dynamic";
+export const maxDuration = 60;
 
 import { getVentasCruzadasV2, getBundles } from "@/lib/dataService";
 import { CrossSellV2Tabs } from "@/components/tables/CrossSellV2Tabs";

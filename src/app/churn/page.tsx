@@ -4,6 +4,7 @@
 // =============================================================
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 60;
 
 import { getChurnV2, getChurnResumen } from "@/lib/dataService";
 import { ChurnV2Table } from "@/components/tables/ChurnV2Table";

@@ -21,8 +21,11 @@ import type {
 } from "./types";
 
 // ── Cache simple en memoria con TTL ─────────────────────────
+// 5 min TTL: con cold starts en Vercel cada invocación nueva paga el cómputo
+// completo. Cuando la lambda ya está caliente, esto hace que las páginas
+// secundarias (reposición, churn, NBA) reutilicen las ventas ya cargadas.
 
-const CACHE_TTL_MS = 60_000; // 1 min — suficiente para amortiguar el dashboard
+const CACHE_TTL_MS = 5 * 60_000;
 type CacheEntry<T> = { value: T; expiresAt: number };
 const cache = new Map<string, CacheEntry<unknown>>();
 
@@ -381,63 +384,107 @@ export async function getChurnResumenDb(tenantId = DEFAULT_TENANT_ID): Promise<C
 }
 
 // ── Reposición pendiente ───────────────────────────────────
+// Calculado en SQL puro para no traer 11k filas y agruparlas en JS.
+// Agrupa por (cedula, codigo), arma intervalos con LAG, y proyecta
+// próxima reposición = última compra + promedio de intervalos.
+
+interface ReposicionRow {
+  cedula: string;
+  nombre: string | null;
+  telefono: string | null;
+  codigo: string;
+  producto: string;
+  ultima_compra: Date;
+  ciclo_dias: number;
+  proxima_reposicion: Date;
+  dias_para_reposicion: number;
+  historial_compras: Date[];
+  intervalos_dias: number[];
+}
 
 export async function getReposicionesPendientesDb(tenantId = DEFAULT_TENANT_ID): Promise<ReposicionPendiente[]> {
   return cached(`reposicion:${tenantId}`, async () => {
-    const ventas = await getAllVentas(tenantId);
-    if (!ventas.length) return [];
+    const rows = await sql<ReposicionRow[]>`
+      WITH ventas_activas AS (
+        SELECT v.cedula, v.codigo, v.producto, v.fecha
+        FROM ventas v
+        LEFT JOIN uploads u ON u.id = v.upload_id
+        WHERE v.tenant_id = ${tenantId}
+          AND (u.active IS NULL OR u.active = true)
+      ),
+      con_lag AS (
+        SELECT cedula, codigo, producto, fecha,
+               LAG(fecha) OVER (PARTITION BY cedula, codigo ORDER BY fecha) AS prev_fecha
+        FROM ventas_activas
+      ),
+      intervalos AS (
+        SELECT cedula, codigo, producto, fecha,
+               EXTRACT(EPOCH FROM (fecha - prev_fecha))/86400 AS dias
+        FROM con_lag
+        WHERE prev_fecha IS NOT NULL
+      ),
+      ciclos AS (
+        SELECT cedula, codigo,
+               AVG(dias) FILTER (WHERE dias > 0 AND dias < 365) AS ciclo_dias,
+               array_agg(ROUND(dias)::int ORDER BY fecha) FILTER (WHERE dias > 0 AND dias < 365) AS intervalos_dias
+        FROM intervalos
+        GROUP BY cedula, codigo
+      ),
+      ultima_compra AS (
+        SELECT DISTINCT ON (cedula, codigo)
+               cedula, codigo, producto, fecha AS ultima
+        FROM ventas_activas
+        ORDER BY cedula, codigo, fecha DESC
+      ),
+      historial AS (
+        SELECT cedula, codigo, array_agg(fecha ORDER BY fecha) AS historial
+        FROM ventas_activas
+        GROUP BY cedula, codigo
+        HAVING COUNT(*) >= 2
+      )
+      SELECT
+        uc.cedula,
+        cl.nombre,
+        cl.telefono,
+        uc.codigo,
+        uc.producto,
+        uc.ultima AS ultima_compra,
+        ROUND(c.ciclo_dias)::int AS ciclo_dias,
+        (uc.ultima + (c.ciclo_dias || ' days')::interval) AS proxima_reposicion,
+        EXTRACT(DAY FROM ((uc.ultima + (c.ciclo_dias || ' days')::interval) - now()))::int AS dias_para_reposicion,
+        h.historial AS historial_compras,
+        c.intervalos_dias
+      FROM ultima_compra uc
+      JOIN ciclos c USING (cedula, codigo)
+      JOIN historial h USING (cedula, codigo)
+      LEFT JOIN clientes cl ON cl.tenant_id = ${tenantId} AND cl.cedula = uc.cedula
+      WHERE c.ciclo_dias IS NOT NULL
+        AND EXTRACT(DAY FROM ((uc.ultima + (c.ciclo_dias || ' days')::interval) - now()))::int <= 30
+      ORDER BY dias_para_reposicion ASC
+    `;
 
-    const REF_DATE = new Date();
-
-    // Agrupar por cliente+producto
-    const grupos = new Map<string, VentaRow[]>();
-    for (const v of ventas) {
-      const key = `${v.cedula}::${v.codigo}`;
-      if (!grupos.has(key)) grupos.set(key, []);
-      grupos.get(key)!.push(v);
-    }
-
-    const resultado: ReposicionPendiente[] = [];
-    for (const [key, vs] of grupos) {
-      if (vs.length < 2) continue;
-      vs.sort((a, b) => a.fecha.getTime() - b.fecha.getTime());
-
-      const intervalos: number[] = [];
-      const fechasIso = vs.map((v) => v.fecha.toISOString());
-      for (let i = 1; i < vs.length; i++) {
-        const d = (vs[i].fecha.getTime() - vs[i - 1].fecha.getTime()) / 86400000;
-        if (d > 0 && d < 365) intervalos.push(d);
-      }
-      if (!intervalos.length) continue;
-
-      const ciclo = intervalos.reduce((s, n) => s + n, 0) / intervalos.length;
-      const ultima = vs[vs.length - 1];
-      const proxima = new Date(ultima.fecha.getTime() + ciclo * 86400000);
-      const dias_para_reposicion = Math.floor((proxima.getTime() - REF_DATE.getTime()) / 86400000);
-
+    return rows.map((r) => {
+      const dias = Number(r.dias_para_reposicion);
       let estado: "Vencido" | "Esta semana" | "Próximo mes";
-      if (dias_para_reposicion < 0) estado = "Vencido";
-      else if (dias_para_reposicion <= 7) estado = "Esta semana";
-      else if (dias_para_reposicion <= 30) estado = "Próximo mes";
-      else continue; // muy lejos, no incluir
+      if (dias < 0) estado = "Vencido";
+      else if (dias <= 7) estado = "Esta semana";
+      else estado = "Próximo mes";
 
-      resultado.push({
-        cedula: ultima.cedula,
-        nombre: ultima.nombre ?? "",
-        telefono: ultima.telefono ?? null,
-        codigo: ultima.codigo,
-        producto: ultima.producto,
-        ultima_compra: ultima.fecha.toISOString(),
-        ciclo_dias: Math.round(ciclo),
-        proxima_reposicion: proxima.toISOString(),
-        dias_para_reposicion,
+      return {
+        cedula: r.cedula,
+        nombre: r.nombre ?? "",
+        telefono: r.telefono ?? null,
+        codigo: r.codigo,
+        producto: r.producto,
+        ultima_compra: new Date(r.ultima_compra).toISOString(),
+        ciclo_dias: Number(r.ciclo_dias),
+        proxima_reposicion: new Date(r.proxima_reposicion).toISOString(),
+        dias_para_reposicion: dias,
         estado,
-        historial_compras: fechasIso,
-        intervalos_dias: intervalos.map((n) => Math.round(n)),
-      });
-    }
-
-    return resultado.sort((a, b) => a.dias_para_reposicion - b.dias_para_reposicion);
+        historial_compras: (r.historial_compras ?? []).map((d) => new Date(d).toISOString()),
+        intervalos_dias: r.intervalos_dias ?? [],
+      };
+    });
   });
 }
 
