@@ -331,7 +331,7 @@ export async function POST(request: NextRequest) {
     const buffer = Buffer.from(await file.arrayBuffer());
     const result = await processWorkbookToDb(buffer, file.name, DEFAULT_TENANT_ID);
 
-    invalidateDataCache();
+    await invalidateDataCache();
     revalidatePath("/", "layout");
 
     return NextResponse.json({
@@ -362,7 +362,7 @@ export async function PUT(request: NextRequest) {
       WHERE id = ${id} AND tenant_id = ${DEFAULT_TENANT_ID}
     `;
 
-    invalidateDataCache();
+    await invalidateDataCache();
     revalidatePath("/", "layout");
     return NextResponse.json({ success: true });
   } catch (err) {
@@ -385,7 +385,7 @@ export async function DELETE(request: NextRequest) {
     await sql`DELETE FROM ventas WHERE upload_id = ${id} AND tenant_id = ${DEFAULT_TENANT_ID}`;
     await sql`DELETE FROM uploads WHERE id = ${id} AND tenant_id = ${DEFAULT_TENANT_ID}`;
 
-    invalidateDataCache();
+    await invalidateDataCache();
     revalidatePath("/", "layout");
     return NextResponse.json({ success: true });
   } catch (err) {

@@ -1,15 +1,11 @@
 // =============================================================
 // Sellix AI — Data Service (Unified)
 //
-// Capa única de acceso a datos. Decide en runtime:
-//   - Si DATABASE_URL está configurada → lee de Postgres
-//   - Si no → lee de los JSON estáticos en data/output/ (modo legacy)
+// Capa única de acceso a datos. En producción siempre lee de Postgres.
+// Los JSONs en data/output/ se mantienen como fallback de desarrollo
+// si DATABASE_URL no está configurada (útil para correr sin DB local).
 //
-// Esto permite que el resto del código no cambie al migrar de
-// "JSON-en-disco" a "Postgres". Los routes/components siguen
-// llamando a getKPIsResumen(), getRecurrencia(), etc.
-//
-// Cuando el ETL de upload corre, invalida el cache de Postgres.
+// Cuando el upload corre, invalida el cache global vía DB version marker.
 // =============================================================
 
 import { readFile } from "fs/promises";

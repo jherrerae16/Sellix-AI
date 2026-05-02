@@ -20,27 +20,72 @@ import type {
   TipoClienteRecurrencia, TipoChurnV2,
 } from "./types";
 
-// ── Cache simple en memoria con TTL ─────────────────────────
-// 5 min TTL: con cold starts en Vercel cada invocación nueva paga el cómputo
-// completo. Cuando la lambda ya está caliente, esto hace que las páginas
-// secundarias (reposición, churn, NBA) reutilicen las ventas ya cargadas.
+// ── Cache en memoria + versionado por DB ────────────────────
+//
+// En Vercel cada lambda tiene su propio módulo, así que un Map<>
+// local no se comparte entre instancias. Para invalidar globalmente,
+// cada lambda chequea una "versión" persistida en Postgres
+// (audit_log con action='cache.invalidate') antes de servir cache.
+// Si la versión cambió desde el último set, se descarta.
+//
+// El check de versión es 1 query barata (~10ms en Neon caliente)
+// y permite que cualquier lambda invalide el cache de TODAS.
 
 const CACHE_TTL_MS = 5 * 60_000;
-type CacheEntry<T> = { value: T; expiresAt: number };
+const VERSION_TTL_MS = 10_000; // re-check version a lo sumo cada 10s
+
+type CacheEntry<T> = { value: T; expiresAt: number; version: string };
 const cache = new Map<string, CacheEntry<unknown>>();
 
+let cachedVersion: { value: string; expiresAt: number } | null = null;
+
+async function getCacheVersion(): Promise<string> {
+  if (cachedVersion && cachedVersion.expiresAt > Date.now()) {
+    return cachedVersion.value;
+  }
+  try {
+    const rows = await sql<{ created_at: Date }[]>`
+      SELECT created_at FROM audit_log
+      WHERE action = 'cache.invalidate'
+      ORDER BY created_at DESC LIMIT 1
+    `;
+    const v = rows[0]?.created_at ? new Date(rows[0].created_at).toISOString() : "v0";
+    cachedVersion = { value: v, expiresAt: Date.now() + VERSION_TTL_MS };
+    return v;
+  } catch {
+    return "v0";
+  }
+}
+
 function cached<T>(key: string, loader: () => Promise<T>): Promise<T> {
-  const hit = cache.get(key) as CacheEntry<T> | undefined;
-  if (hit && hit.expiresAt > Date.now()) return Promise.resolve(hit.value);
-  return loader().then((value) => {
-    cache.set(key, { value, expiresAt: Date.now() + CACHE_TTL_MS });
-    return value;
+  return getCacheVersion().then((version) => {
+    const hit = cache.get(key) as CacheEntry<T> | undefined;
+    if (hit && hit.expiresAt > Date.now() && hit.version === version) {
+      return hit.value;
+    }
+    return loader().then((value) => {
+      cache.set(key, { value, expiresAt: Date.now() + CACHE_TTL_MS, version });
+      return value;
+    });
   });
 }
 
-/** Invalida cache — llamar tras un upload. */
-export function invalidateDataCache(): void {
+/**
+ * Invalida cache global. Escribe una marca en audit_log; todas las
+ * lambdas (esta y otras) la verán al próximo check de versión (~10s).
+ * También limpia el cache local para reflejar inmediatamente.
+ */
+export async function invalidateDataCache(): Promise<void> {
   cache.clear();
+  cachedVersion = null;
+  try {
+    await sql`
+      INSERT INTO audit_log (actor, action, entity_type, payload)
+      VALUES ('system', 'cache.invalidate', 'data', '{}'::jsonb)
+    `;
+  } catch {
+    // si falla, al menos limpiamos local
+  }
 }
 
 // ── Helpers ────────────────────────────────────────────────

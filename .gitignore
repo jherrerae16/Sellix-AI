@@ -31,8 +31,10 @@ data/crm/
 # Campaign logs — registros de mensajes enviados
 data/campaigns/
 
-# Output data — JSONs generados (se incluyen en repo para deploy)
-# data/output/ — YES tracked (needed for Vercel serverless)
+# Output data — JSONs ya no se versionan; los datos viven en Postgres.
+# .gitkeep mantiene la carpeta para fallback de desarrollo si alguien
+# corre los scripts ETL sin DATABASE_URL configurada.
+data/output/*.json
 public/data/*.json
 
 # Vercel
