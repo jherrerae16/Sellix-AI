@@ -206,7 +206,10 @@ export async function getRecurrenciaDb(tenantId = DEFAULT_TENANT_ID): Promise<Cl
     const ventas = await getAllVentas(tenantId);
     if (!ventas.length) return [];
 
-    const REF_DATE = new Date();
+    // REF_DATE = última fecha con ventas registradas. Usar now() haría que
+    // todos los clientes salieran "inactivos" si los datos son históricos.
+    const ultimaFechaConVentas = new Date(Math.max(...ventas.map((v) => v.fecha.getTime())));
+    const REF_DATE = ultimaFechaConVentas;
 
     // Agrupar por cliente
     const porCliente = new Map<string, VentaRow[]>();
@@ -459,6 +462,9 @@ export async function getReposicionesPendientesDb(tenantId = DEFAULT_TENANT_ID):
         WHERE v.tenant_id = ${tenantId}
           AND (u.active IS NULL OR u.active = true)
       ),
+      ref_date AS (
+        SELECT MAX(fecha) AS d FROM ventas_activas
+      ),
       con_lag AS (
         SELECT cedula, codigo, producto, fecha,
                LAG(fecha) OVER (PARTITION BY cedula, codigo ORDER BY fecha) AS prev_fecha
@@ -498,7 +504,7 @@ export async function getReposicionesPendientesDb(tenantId = DEFAULT_TENANT_ID):
         uc.ultima AS ultima_compra,
         ROUND(c.ciclo_dias)::int AS ciclo_dias,
         (uc.ultima + (c.ciclo_dias || ' days')::interval) AS proxima_reposicion,
-        EXTRACT(DAY FROM ((uc.ultima + (c.ciclo_dias || ' days')::interval) - now()))::int AS dias_para_reposicion,
+        EXTRACT(DAY FROM ((uc.ultima + (c.ciclo_dias || ' days')::interval) - (SELECT d FROM ref_date)))::int AS dias_para_reposicion,
         h.historial AS historial_compras,
         c.intervalos_dias
       FROM ultima_compra uc
@@ -506,7 +512,7 @@ export async function getReposicionesPendientesDb(tenantId = DEFAULT_TENANT_ID):
       JOIN historial h USING (cedula, codigo)
       LEFT JOIN clientes cl ON cl.tenant_id = ${tenantId} AND cl.cedula = uc.cedula
       WHERE c.ciclo_dias IS NOT NULL
-        AND EXTRACT(DAY FROM ((uc.ultima + (c.ciclo_dias || ' days')::interval) - now()))::int <= 30
+        AND EXTRACT(DAY FROM ((uc.ultima + (c.ciclo_dias || ' days')::interval) - (SELECT d FROM ref_date)))::int <= 30
       ORDER BY dias_para_reposicion ASC
       LIMIT 500
     `;
@@ -691,6 +697,7 @@ export async function getVentasMensualesDb(tenantId = DEFAULT_TENANT_ID): Promis
 
 export async function getTopProductosDb(tenantId = DEFAULT_TENANT_ID): Promise<TopProducto[]> {
   return cached(`top_productos:${tenantId}`, async () => {
+    // Excluir items de transferencia/relación que no son productos reales
     const rows = await sql<{ codigo: string; nombre: string; unidades: string; ingresos: string }[]>`
       SELECT
         v.codigo,
@@ -701,6 +708,8 @@ export async function getTopProductosDb(tenantId = DEFAULT_TENANT_ID): Promise<T
       LEFT JOIN uploads u ON u.id = v.upload_id
       WHERE v.tenant_id = ${tenantId}
         AND (u.active IS NULL OR u.active = true)
+        AND v.producto NOT ILIKE '%RELACION DE MEDICAMENTOS%'
+        AND v.producto NOT ILIKE '%TRANSFERENCIA%'
       GROUP BY v.codigo
       ORDER BY ingresos DESC NULLS LAST
       LIMIT 15
