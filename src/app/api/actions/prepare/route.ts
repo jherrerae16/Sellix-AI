@@ -29,7 +29,8 @@ const ACTION_TTL_HOURS = 24;
 
 function isAuthorized(req: NextRequest): boolean {
   const secret = process.env.CRON_SECRET;
-  if (!secret) return true;
+  // Fail-closed. CRON_SECRET debe estar configurado en Vercel y .env.local.
+  if (!secret) return false;
   const auth = req.headers.get("authorization");
   return auth === `Bearer ${secret}`;
 }

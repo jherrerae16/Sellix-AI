@@ -219,7 +219,9 @@ async function markQueueFailed(ids: number[], errorMsg: string): Promise<void> {
 
 function isAuthorized(req: NextRequest): boolean {
   const secret = process.env.CRON_SECRET;
-  if (!secret) return true; // sin secret = abierto (dev)
+  // Fail-closed: si CRON_SECRET no está configurado, NO se permite acceso.
+  // En dev, configura CRON_SECRET en .env.local.
+  if (!secret) return false;
   const auth = req.headers.get("authorization");
   return auth === `Bearer ${secret}`;
 }

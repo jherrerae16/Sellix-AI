@@ -13,6 +13,7 @@ import { NextRequest, NextResponse } from "next/server";
 import twilio from "twilio";
 import { Resend } from "resend";
 import { sql, hasDatabase, DEFAULT_TENANT_ID } from "@/lib/db";
+import { auth } from "@/auth";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -106,6 +107,10 @@ export async function POST(request: NextRequest) {
   if (!hasDatabase) {
     return NextResponse.json({ error: "DATABASE_URL no configurada" }, { status: 500 });
   }
+
+  // Resolver actor desde sesión NextAuth para audit trail
+  const session = await auth();
+  const actor = session?.user?.name || session?.user?.email || "unknown";
 
   let body: { id?: string; edited_message?: string };
   try {
@@ -206,7 +211,7 @@ export async function POST(request: NextRequest) {
   await sql`
     UPDATE prepared_actions SET
       status = 'executed',
-      approved_by = ${"admin"},
+      approved_by = ${actor},
       approved_at = now(),
       executed_at = now(),
       campaign_id = ${campaignId}
@@ -216,7 +221,7 @@ export async function POST(request: NextRequest) {
   // Audit
   await sql`
     INSERT INTO audit_log (tenant_id, actor, action, entity_type, entity_id, payload)
-    VALUES (${DEFAULT_TENANT_ID}, ${"admin"}, ${"action.approve"}, ${"prepared_action"}, ${id},
+    VALUES (${DEFAULT_TENANT_ID}, ${actor}, ${"action.approve"}, ${"prepared_action"}, ${id},
       ${sql.json({ campaign_id: campaignId, sent, failed, recipients: action.recipients.length })})
   `;
 
