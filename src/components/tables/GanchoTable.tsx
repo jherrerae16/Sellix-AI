@@ -91,19 +91,21 @@ export function GanchoTable({ data }: GanchoTableProps) {
       }),
       col.accessor("indice_atraccion", {
         header: "Frec. aparición",
-        cell: (info) => (
-          <div className="flex items-center gap-2">
-            <div className="w-16 h-1.5 bg-gray-200 rounded-full overflow-hidden">
-              <div
-                className="h-full bg-brand-blue rounded-full"
-                style={{ width: `${Math.min(info.getValue() * 100 * 5, 100)}%` }}
-              />
+        cell: (info) => {
+          // indice_atraccion ya viene 0-100 (porcentaje entero)
+          const pct = Math.min(Math.max(info.getValue() ?? 0, 0), 100);
+          return (
+            <div className="flex items-center gap-2">
+              <div className="w-16 h-1.5 bg-gray-200 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-brand-blue rounded-full"
+                  style={{ width: `${pct}%` }}
+                />
+              </div>
+              <span className="text-sm text-gray-600">{Math.round(pct)}%</span>
             </div>
-            <span className="text-sm text-gray-600">
-              {formatScore(info.getValue() * 100, 1)}%
-            </span>
-          </div>
-        ),
+          );
+        },
       }),
       col.accessor("poder_arrastre", {
         header: "Poder arrastre",

@@ -80,7 +80,7 @@ function ClientDetailDrawer({ cliente, onClose }: { cliente: ClienteRecurrencia;
             <div className="bg-gray-50 border border-gray-200 rounded-xl p-3">
               <p className="text-xs text-gray-600 uppercase">Frecuencia</p>
               <p className="text-lg font-bold text-gray-900">
-                {cliente.frecuencia_dias > 0 ? `${cliente.frecuencia_dias}d` : "—"}
+                {cliente.frecuencia_dias > 0 ? `${Math.round(cliente.frecuencia_dias)}d` : "—"}
               </p>
             </div>
           </div>
@@ -320,7 +320,7 @@ export function RecurrenciaTable({ data }: Props) {
                     </span>
                   </td>
                   <td className="px-4 py-3 text-right text-sm font-semibold">{r.num_sesiones}</td>
-                  <td className="px-4 py-3 text-right text-sm text-gray-600">{r.frecuencia_dias > 0 ? `${r.frecuencia_dias}d` : "—"}</td>
+                  <td className="px-4 py-3 text-right text-sm text-gray-600">{r.frecuencia_dias > 0 ? `${Math.round(r.frecuencia_dias)}d` : "—"}</td>
                   <td className="px-4 py-3 text-right text-sm text-gray-600">{formatCOP(r.ticket_promedio)}</td>
                   <td className="px-4 py-3 text-right text-sm font-semibold text-brand-blue">{formatCOP(r.ingreso_total)}</td>
                   <td className="px-4 py-3 text-right">
