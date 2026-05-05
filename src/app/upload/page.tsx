@@ -33,6 +33,7 @@ export default function UploadPage() {
   const [fileName, setFileName] = useState<string | null>(null);
   const [dataStats, setDataStats] = useState<DataStats>({ hasData: false, totalRecords: 0, jsonFiles: 0 });
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [classifying, setClassifying] = useState(false);
 
   const loadFiles = useCallback(async () => {
     try {
@@ -44,6 +45,40 @@ export default function UploadPage() {
   }, []);
 
   useEffect(() => { loadFiles(); }, [loadFiles]);
+
+  // Auto-poll cuando hay productos pendientes de clasificación
+  useEffect(() => {
+    const pending = dataStats.pendingClassification ?? 0;
+    if (pending === 0) return;
+    const interval = setInterval(() => loadFiles(), 10_000);
+    return () => clearInterval(interval);
+  }, [dataStats.pendingClassification, loadFiles]);
+
+  async function runClassification() {
+    setClassifying(true);
+    try {
+      const res = await fetch("/api/classification/process");
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Error");
+      const s = data.stats ?? {};
+      const parts: string[] = [];
+      if (s.fuzzy_matched) parts.push(`${s.fuzzy_matched} por similitud`);
+      if (s.gemini_classified) parts.push(`${s.gemini_classified} por IA`);
+      if (s.failed) parts.push(`${s.failed} fallidos`);
+      setUploadMsg({
+        type: "ok",
+        text: parts.length
+          ? `Clasificados: ${parts.join(" · ")}`
+          : "Cola de clasificación vacía",
+      });
+      await loadFiles();
+      router.refresh();
+    } catch (e) {
+      setUploadMsg({ type: "err", text: e instanceof Error ? e.message : "Error" });
+    } finally {
+      setClassifying(false);
+    }
+  }
 
   async function processFile(file: File) {
     if (!file.name.match(/\.(xlsx|xls)$/i)) {
@@ -171,11 +206,20 @@ export default function UploadPage() {
           </div>
         </div>
         {(dataStats.pendingClassification ?? 0) > 0 && (
-          <div className="mt-3 flex items-center gap-2 text-xs text-amber-700 bg-amber-50 rounded-lg px-3 py-2">
-            <Sparkles className="w-4 h-4" />
-            <span>
-              {dataStats.pendingClassification} producto{dataStats.pendingClassification === 1 ? "" : "s"} en cola de clasificación con IA
-            </span>
+          <div className="mt-3 flex items-center justify-between gap-2 text-xs text-amber-700 bg-amber-50 rounded-lg px-3 py-2">
+            <div className="flex items-center gap-2">
+              <Sparkles className="w-4 h-4" />
+              <span>
+                {dataStats.pendingClassification} producto{dataStats.pendingClassification === 1 ? "" : "s"} en cola de clasificación con IA
+              </span>
+            </div>
+            <button
+              onClick={runClassification}
+              disabled={classifying}
+              className="text-xs font-medium text-amber-800 hover:text-amber-900 underline disabled:opacity-50 disabled:no-underline"
+            >
+              {classifying ? "Procesando…" : "Procesar ahora"}
+            </button>
           </div>
         )}
       </div>
