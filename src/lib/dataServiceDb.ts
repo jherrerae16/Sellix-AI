@@ -775,25 +775,27 @@ export async function getProductosGanchoDb(tenantId = DEFAULT_TENANT_ID): Promis
           v.codigo,
           MAX(v.producto) AS nombre,
           COUNT(*)::int AS veces,
-          COUNT(*) FILTER (WHERE ps.productos_distintos >= 2)::int AS sesiones_arrastre,
+          COUNT(*) FILTER (WHERE ps.productos_distintos >= 3)::int AS sesiones_grandes,
           AVG(ps.total_sesion)::numeric AS ticket_promedio
         FROM ventas_activas v
         JOIN por_sesion ps ON ps.sesion = v.sesion
         GROUP BY v.codigo
-        HAVING COUNT(*) >= 5
+        HAVING COUNT(*) >= 20
       )
-      SELECT codigo, nombre, veces, sesiones_arrastre, ticket_promedio
+      SELECT codigo, nombre, veces, sesiones_grandes AS sesiones_arrastre, ticket_promedio
       FROM producto_metrics
-      ORDER BY (sesiones_arrastre::float / GREATEST(veces, 1)) DESC, veces DESC
+      ORDER BY (sesiones_grandes::float / GREATEST(veces, 1)) DESC, veces DESC
       LIMIT 50
     `;
 
+    // sesiones_arrastre = sesiones donde este producto aparece junto a >=2 más
+    // ratio = % de veces que el producto "jala" sesión grande vs aparece solo
     return rows.map((r) => {
       const ratio = r.veces > 0 ? r.sesiones_arrastre / r.veces : 0;
       const ticket = Number(r.ticket_promedio) || 0;
       let categoria_gancho: ProductoGancho["categoria_gancho"];
-      if (ratio >= 0.7 && ticket >= 80000) categoria_gancho = "Gancho Primario";
-      else if (ratio >= 0.5) categoria_gancho = "Gancho Secundario";
+      if (ratio >= 0.4 && ticket >= 80000) categoria_gancho = "Gancho Primario";
+      else if (ratio >= 0.25) categoria_gancho = "Gancho Secundario";
       else if (r.veces >= 50) categoria_gancho = "Volumen puro";
       else categoria_gancho = "Nicho estratégico";
       return {
