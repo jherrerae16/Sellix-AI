@@ -18,6 +18,8 @@ import type {
   KPIsResumen, ClienteRecurrencia, ClienteChurnV2, ChurnResumen,
   ReposicionPendiente, VentasCruzadasV2, ProductoClasificado,
   TipoClienteRecurrencia, TipoChurnV2,
+  VentaMensual, TopProducto, ClienteChurn, VentaCruzada,
+  ProductoGancho, Bundle,
 } from "./types";
 
 // ── Cache en memoria + versionado por DB ────────────────────
@@ -657,5 +659,243 @@ export async function getVentasCruzadasV2Db(tenantId = DEFAULT_TENANT_ID): Promi
       por_categoria: buildGeneric(paresCat, conteoCat),
       por_tratamiento: buildGeneric(paresTrat, conteoTrat),
     };
+  });
+}
+
+// ── Ventas mensuales (gráfico de tendencia) ─────────────────
+
+export async function getVentasMensualesDb(tenantId = DEFAULT_TENANT_ID): Promise<VentaMensual[]> {
+  return cached(`ventas_mensuales:${tenantId}`, async () => {
+    const rows = await sql<{ mes: string; ingresos: string; transacciones: number }[]>`
+      SELECT
+        to_char(date_trunc('month', v.fecha), 'YYYY-MM') AS mes,
+        SUM(v.total)::numeric AS ingresos,
+        COUNT(DISTINCT v.sesion)::int AS transacciones
+      FROM ventas v
+      LEFT JOIN uploads u ON u.id = v.upload_id
+      WHERE v.tenant_id = ${tenantId}
+        AND (u.active IS NULL OR u.active = true)
+      GROUP BY date_trunc('month', v.fecha)
+      ORDER BY mes
+    `;
+    return rows.map((r) => ({
+      mes: r.mes,
+      ingresos: Number(r.ingresos) || 0,
+      transacciones: Number(r.transacciones) || 0,
+    }));
+  });
+}
+
+// ── Top productos (gráfico barra) ──────────────────────────
+
+export async function getTopProductosDb(tenantId = DEFAULT_TENANT_ID): Promise<TopProducto[]> {
+  return cached(`top_productos:${tenantId}`, async () => {
+    const rows = await sql<{ codigo: string; nombre: string; unidades: string; ingresos: string }[]>`
+      SELECT
+        v.codigo,
+        MAX(v.producto) AS nombre,
+        SUM(v.cantidad)::numeric AS unidades,
+        SUM(v.total)::numeric AS ingresos
+      FROM ventas v
+      LEFT JOIN uploads u ON u.id = v.upload_id
+      WHERE v.tenant_id = ${tenantId}
+        AND (u.active IS NULL OR u.active = true)
+      GROUP BY v.codigo
+      ORDER BY ingresos DESC NULLS LAST
+      LIMIT 15
+    `;
+    return rows.map((r) => ({
+      codigo: r.codigo,
+      nombre: r.nombre,
+      unidades: Number(r.unidades) || 0,
+      ingresos: Number(r.ingresos) || 0,
+    }));
+  });
+}
+
+// ── Cliente churn legacy (KPI Resumen) ─────────────────────
+// Deriva un ClienteChurn[] simplificado desde churn_v2 para compat con
+// la pestaña Resumen, que solo necesita conteos por nivel de riesgo.
+
+export async function getClientesChurnLegacyDb(tenantId = DEFAULT_TENANT_ID): Promise<ClienteChurn[]> {
+  const churn = await getChurnV2Db(tenantId);
+  return churn.map((c) => ({
+    cedula: c.cedula,
+    nombre: c.nombre,
+    telefono: c.telefono,
+    ultima_compra: c.ultima_compra,
+    frecuencia_promedio_dias: c.frecuencia_dias,
+    dias_sin_comprar: c.dias_sin_comprar,
+    churn_score: Math.min(100, Math.round(c.churn_ratio * 30)),
+    nivel_riesgo: c.nivel_riesgo === "alto" ? "Alto" : c.nivel_riesgo === "medio" ? "Medio" : "Bajo",
+    accion_sugerida: c.razon,
+  }));
+}
+
+// ── Ventas cruzadas legacy (compat) ────────────────────────
+
+export async function getVentasCruzadasLegacyDb(tenantId = DEFAULT_TENANT_ID): Promise<VentaCruzada[]> {
+  const v2 = await getVentasCruzadasV2Db(tenantId);
+  return v2.por_producto.map((p) => ({
+    producto_base: p.item_a.nombre,
+    producto_recomendado: p.item_b.nombre,
+    veces_juntos: p.veces_juntos,
+    lift: p.lift,
+    confianza: p.confianza_ab,
+    incremento_ticket_estimado: 0,
+    categoria_terapeutica: p.item_a.categoria || undefined,
+  }));
+}
+
+// ── Productos gancho ────────────────────────────────────────
+// Categoriza productos por su poder de arrastre: top productos que
+// aparecen en sesiones grandes (alto ticket promedio) son ganchos.
+
+export async function getProductosGanchoDb(tenantId = DEFAULT_TENANT_ID): Promise<ProductoGancho[]> {
+  return cached(`gancho:${tenantId}`, async () => {
+    const rows = await sql<{
+      codigo: string; nombre: string; veces: number;
+      sesiones_arrastre: number; ticket_promedio: string;
+    }[]>`
+      WITH ventas_activas AS (
+        SELECT v.cedula, v.codigo, v.producto, v.sesion, v.total
+        FROM ventas v
+        LEFT JOIN uploads u ON u.id = v.upload_id
+        WHERE v.tenant_id = ${tenantId}
+          AND (u.active IS NULL OR u.active = true)
+      ),
+      por_sesion AS (
+        SELECT sesion, COUNT(DISTINCT codigo) AS productos_distintos, SUM(total) AS total_sesion
+        FROM ventas_activas
+        GROUP BY sesion
+      ),
+      producto_metrics AS (
+        SELECT
+          v.codigo,
+          MAX(v.producto) AS nombre,
+          COUNT(*)::int AS veces,
+          COUNT(*) FILTER (WHERE ps.productos_distintos >= 2)::int AS sesiones_arrastre,
+          AVG(ps.total_sesion)::numeric AS ticket_promedio
+        FROM ventas_activas v
+        JOIN por_sesion ps ON ps.sesion = v.sesion
+        GROUP BY v.codigo
+        HAVING COUNT(*) >= 5
+      )
+      SELECT codigo, nombre, veces, sesiones_arrastre, ticket_promedio
+      FROM producto_metrics
+      ORDER BY (sesiones_arrastre::float / GREATEST(veces, 1)) DESC, veces DESC
+      LIMIT 50
+    `;
+
+    return rows.map((r) => {
+      const ratio = r.veces > 0 ? r.sesiones_arrastre / r.veces : 0;
+      const ticket = Number(r.ticket_promedio) || 0;
+      let categoria_gancho: ProductoGancho["categoria_gancho"];
+      if (ratio >= 0.7 && ticket >= 80000) categoria_gancho = "Gancho Primario";
+      else if (ratio >= 0.5) categoria_gancho = "Gancho Secundario";
+      else if (r.veces >= 50) categoria_gancho = "Volumen puro";
+      else categoria_gancho = "Nicho estratégico";
+      return {
+        codigo: r.codigo,
+        nombre: r.nombre,
+        categoria_gancho,
+        indice_atraccion: Math.round(ratio * 100),
+        poder_arrastre: r.sesiones_arrastre,
+        tiene_descuento_frecuente: false,
+        ticket_promedio_en_sesion: Math.round(ticket),
+      };
+    });
+  });
+}
+
+// ── Bundles ─────────────────────────────────────────────────
+// Bundles = sesiones recurrentes con 3-5 productos comprados juntos.
+// Un bundle "real" aparece >= MIN_APARICIONES veces en distintas sesiones.
+
+export async function getBundlesDb(tenantId = DEFAULT_TENANT_ID): Promise<Bundle[]> {
+  return cached(`bundles:${tenantId}`, async () => {
+    const MIN_APARICIONES = 3;
+
+    // Agrupar productos por sesión, considerar solo sesiones con 3-5 productos
+    const sesionesData = await sql<{ sesion: string; productos: string[]; total: string }[]>`
+      WITH ventas_activas AS (
+        SELECT v.sesion, v.codigo, v.total
+        FROM ventas v
+        LEFT JOIN uploads u ON u.id = v.upload_id
+        WHERE v.tenant_id = ${tenantId}
+          AND (u.active IS NULL OR u.active = true)
+      )
+      SELECT
+        sesion,
+        array_agg(DISTINCT codigo ORDER BY codigo) AS productos,
+        SUM(total)::numeric AS total
+      FROM ventas_activas
+      GROUP BY sesion
+      HAVING COUNT(DISTINCT codigo) BETWEEN 3 AND 5
+    `;
+
+    // Buscar combinaciones recurrentes
+    const combos = new Map<string, { codigos: string[]; sesiones: string[]; tickets: number[] }>();
+    for (const s of sesionesData) {
+      const key = s.productos.join("|");
+      if (!combos.has(key)) {
+        combos.set(key, { codigos: s.productos, sesiones: [], tickets: [] });
+      }
+      const c = combos.get(key)!;
+      c.sesiones.push(s.sesion);
+      c.tickets.push(Number(s.total) || 0);
+    }
+
+    const recurrentes = Array.from(combos.values()).filter((c) => c.sesiones.length >= MIN_APARICIONES);
+    if (!recurrentes.length) return [];
+
+    // Resolver nombres + clasificación de cada producto
+    const todosCodigos = Array.from(new Set(recurrentes.flatMap((c) => c.codigos)));
+    const productosInfo = await sql<{
+      codigo: string; nombre: string; categoria_terapeutica: string | null;
+      tratamiento: string | null; precio_unidad: string | null; precio_caja: string | null;
+    }[]>`
+      SELECT
+        pm.codigo,
+        pm.nombre_normalizado AS nombre,
+        pm.categoria_terapeutica,
+        pm.tratamiento,
+        pt.precio_unidad,
+        pt.precio_caja
+      FROM productos_master pm
+      LEFT JOIN productos_tenant pt ON pt.codigo = pm.codigo AND pt.tenant_id = ${tenantId}
+      WHERE pm.codigo = ANY(${todosCodigos})
+    `;
+    const productoMap = new Map(productosInfo.map((p) => [p.codigo, p]));
+
+    return recurrentes
+      .map((c) => {
+        const productos = c.codigos.map((cod) => {
+          const info = productoMap.get(cod);
+          return {
+            codigo: cod,
+            nombre: info?.nombre ?? cod,
+            categoria: info?.categoria_terapeutica ?? "",
+            tratamiento: info?.tratamiento ?? "",
+            precio_unidad: Number(info?.precio_unidad) || 0,
+            precio_caja: Number(info?.precio_caja) || 0,
+          };
+        });
+        const ticket_suma = c.tickets.reduce((s, n) => s + n, 0);
+        const ticket_promedio = ticket_suma / c.tickets.length;
+        const categorias = Array.from(new Set(productos.map((p) => p.categoria).filter(Boolean)));
+        const tratamientos = Array.from(new Set(productos.map((p) => p.tratamiento).filter(Boolean)));
+        return {
+          productos,
+          tamano: productos.length,
+          apariciones: c.sesiones.length,
+          ticket_promedio: Math.round(ticket_promedio),
+          ticket_suma: Math.round(ticket_suma),
+          categorias_involucradas: categorias,
+          tratamientos_involucrados: tratamientos,
+        };
+      })
+      .sort((a, b) => b.apariciones - a.apariciones)
+      .slice(0, 20);
   });
 }

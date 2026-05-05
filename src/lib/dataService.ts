@@ -51,16 +51,19 @@ export async function getKPIsResumen(): Promise<KPIsResumen> {
 }
 
 export async function getVentasMensuales(): Promise<VentaMensual[]> {
+  if (hasDatabase) return db.getVentasMensualesDb();
   return loadJSON<VentaMensual[]>("ventas_mensuales.json", []);
 }
 
 export async function getTopProductos(): Promise<TopProducto[]> {
+  if (hasDatabase) return db.getTopProductosDb();
   return loadJSON<TopProducto[]>("top_productos.json", []);
 }
 
 // ── Churn (legacy) ─────────────────────────────────────────
 
 export async function getClientesChurn(): Promise<ClienteChurn[]> {
+  if (hasDatabase) return db.getClientesChurnLegacyDb();
   return loadJSON<ClienteChurn[]>("churn_clientes.json", []);
 }
 
@@ -74,6 +77,7 @@ export async function getReposicionesPendientes(): Promise<ReposicionPendiente[]
 // ── Cross-sell legacy ──────────────────────────────────────
 
 export async function getVentasCruzadas(): Promise<VentaCruzada[]> {
+  if (hasDatabase) return db.getVentasCruzadasLegacyDb();
   return loadJSON<VentaCruzada[]>("ventas_cruzadas.json", []);
 }
 
@@ -84,6 +88,7 @@ export async function getClientesRFM(): Promise<ClienteRFM[]> {
 }
 
 export async function getProductosGancho(): Promise<ProductoGancho[]> {
+  if (hasDatabase) return db.getProductosGanchoDb();
   return loadJSON<ProductoGancho[]>("productos_gancho.json", []);
 }
 
@@ -114,6 +119,7 @@ export async function getChurnResumen(): Promise<ChurnResumen> {
 }
 
 export async function getBundles(): Promise<Bundle[]> {
+  if (hasDatabase) return db.getBundlesDb();
   return loadJSON<Bundle[]>("bundles.json", []);
 }
 
