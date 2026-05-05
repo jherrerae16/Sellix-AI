@@ -17,12 +17,15 @@ export function formatCOP(value: number): string {
 }
 
 /**
- * Formatea una fecha ISO a DD/MM/YYYY.
- * Ejemplo: "2025-10-31" → "31/10/2025"
+ * Formatea una fecha a DD/MM/YYYY.
+ * Acepta "2025-10-31", "2025-10-31T00:00:00.000Z" o un Date object.
  */
-export function formatDate(isoDate: string): string {
-  if (!isoDate) return "—";
-  const date = new Date(isoDate + "T00:00:00Z");
+export function formatDate(input: string | Date | null | undefined): string {
+  if (!input) return "—";
+  const raw = input instanceof Date ? input.toISOString() : String(input);
+  const dateStr = raw.includes("T") ? raw : raw + "T00:00:00Z";
+  const date = new Date(dateStr);
+  if (isNaN(date.getTime())) return "—";
   return new Intl.DateTimeFormat("es-CO", {
     day: "2-digit",
     month: "2-digit",

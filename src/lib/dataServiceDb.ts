@@ -508,6 +508,7 @@ export async function getReposicionesPendientesDb(tenantId = DEFAULT_TENANT_ID):
       WHERE c.ciclo_dias IS NOT NULL
         AND EXTRACT(DAY FROM ((uc.ultima + (c.ciclo_dias || ' days')::interval) - now()))::int <= 30
       ORDER BY dias_para_reposicion ASC
+      LIMIT 500
     `;
 
     return rows.map((r) => {
@@ -814,7 +815,7 @@ export async function getProductosGanchoDb(tenantId = DEFAULT_TENANT_ID): Promis
 
 export async function getBundlesDb(tenantId = DEFAULT_TENANT_ID): Promise<Bundle[]> {
   return cached(`bundles:${tenantId}`, async () => {
-    const MIN_APARICIONES = 3;
+    const MIN_APARICIONES = 2;
 
     // Agrupar productos por sesión, considerar solo sesiones con 3-5 productos
     const sesionesData = await sql<{ sesion: string; productos: string[]; total: string }[]>`
@@ -834,12 +835,15 @@ export async function getBundlesDb(tenantId = DEFAULT_TENANT_ID): Promise<Bundle
       HAVING COUNT(DISTINCT codigo) BETWEEN 3 AND 5
     `;
 
-    // Buscar combinaciones recurrentes
+    // Buscar combinaciones recurrentes. Forzar dedup + sort en JS para
+    // que dos sesiones con mismos codigos siempre colisionen en la misma key
+    // (independiente del orden que Postgres devuelva en array_agg).
     const combos = new Map<string, { codigos: string[]; sesiones: string[]; tickets: number[] }>();
     for (const s of sesionesData) {
-      const key = s.productos.join("|");
+      const codigos = Array.from(new Set(s.productos)).sort();
+      const key = codigos.join("|");
       if (!combos.has(key)) {
-        combos.set(key, { codigos: s.productos, sesiones: [], tickets: [] });
+        combos.set(key, { codigos, sesiones: [], tickets: [] });
       }
       const c = combos.get(key)!;
       c.sesiones.push(s.sesion);

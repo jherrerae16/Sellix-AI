@@ -11,7 +11,24 @@ import { ReposicionCampaignView } from "@/components/campaigns/ReposicionCampaig
 import { RefreshCcw } from "lucide-react";
 
 export default async function ReposicionPage() {
-  const reposiciones = await getReposicionesPendientes();
+  let reposiciones;
+  try {
+    reposiciones = await getReposicionesPendientes();
+  } catch (err) {
+    console.error("[reposicion] error:", err);
+    return (
+      <div className="max-w-2xl mx-auto bg-white rounded-xl border border-amber-200 p-8 text-center">
+        <h1 className="text-lg font-bold text-gray-900">Predicción de Reposición</h1>
+        <p className="text-sm text-amber-700 mt-3">
+          No fue posible cargar las reposiciones en este momento.
+        </p>
+        <p className="text-xs text-gray-500 mt-2">
+          Esto suele ocurrir tras un periodo de inactividad mientras la base de
+          datos se reconecta. Intenta refrescar la página.
+        </p>
+      </div>
+    );
+  }
 
   const vencidas = reposiciones.filter((r) => r.estado === "Vencido").length;
   const estaSemana = reposiciones.filter(

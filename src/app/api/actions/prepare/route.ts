@@ -18,6 +18,7 @@ import {
 import type {
   ClienteChurnV2, ClienteRecurrencia, ReposicionPendiente,
 } from "@/lib/types";
+import { auth } from "@/auth";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -27,12 +28,14 @@ const ACTION_TTL_HOURS = 24;
 
 // ── Auth ─────────────────────────────────────────────────────
 
-function isAuthorized(req: NextRequest): boolean {
+async function isAuthorized(req: NextRequest): Promise<boolean> {
+  // Aceptar Bearer (cron) O sesión NextAuth (botón UI).
   const secret = process.env.CRON_SECRET;
-  // Fail-closed. CRON_SECRET debe estar configurado en Vercel y .env.local.
-  if (!secret) return false;
-  const auth = req.headers.get("authorization");
-  return auth === `Bearer ${secret}`;
+  if (secret && req.headers.get("authorization") === `Bearer ${secret}`) {
+    return true;
+  }
+  const session = await auth();
+  return !!session?.user;
 }
 
 // ── Recipient selection ─────────────────────────────────────
@@ -200,22 +203,34 @@ async function generateMessage(ctx: ActionContext): Promise<{ message: string; s
     },
   });
 
-  const prompt = `Eres asistente comercial de droguería en Colombia. Genera un mensaje WhatsApp para esta acción:
+  const prompt = `Eres encargado de comunicación de una droguería profesional en Colombia. Genera un mensaje WhatsApp educado y profesional para esta acción comercial:
 
 Categoría: ${ctx.category}
 Acción: ${ctx.title}
 Contexto: ${ctx.description}
 
-Ejemplos de destinatarios reales:
+Ejemplos de destinatarios:
 ${ctx.example_recipients.slice(0, 3).map((r) => `- ${r.nombre}: ${r.razon}${r.producto ? ` (producto: ${r.producto})` : ""}`).join("\n")}
 
-Reglas:
-- Máximo 350 caracteres
-- Tono cercano colombiano, NO formal
-- Usa {{nombre}} como placeholder del nombre del cliente
-- NO inventes precios ni productos específicos
-- Sugiere oferta solo si tiene sentido (descuento, bonificación, atención prioritaria)
-- Termina con CTA claro: "¿Te ayudo?" o "¿Quieres que te lo aparte?"`;
+REGLAS ESTRICTAS:
+1. Tono: profesional, respetuoso, cercano pero NO informal. Como una droguería de barrio que cuida a su cliente, no como un vendedor de marketplace.
+2. PROHIBIDO emojis, signos de exclamación múltiples, mayúsculas, lenguaje promocional agresivo ("ÚLTIMA OPORTUNIDAD", "OFERTÓN", "NO TE LO PIERDAS").
+3. PROHIBIDO inventar precios, descuentos específicos, fechas límite o productos concretos.
+4. Saludo formal de día ("Buen día", "Buenas tardes") es opcional.
+5. Identifícate como la droguería brevemente.
+6. Si la acción es de salud (crónicos, reposición), enfatiza el cuidado del paciente, no la venta.
+7. Mensaje breve: 200-300 caracteres ideal, máximo 350.
+8. Usa {{nombre}} como placeholder del cliente.
+9. CTA suave: "Quedamos atentos a tu respuesta", "Si necesitas asesoría, escríbenos", "Estamos a tu orden".
+10. La oferta sugerida (campo separado) puede mencionar descuento moderado (5-15%), atención prioritaria, o entrega a domicilio. Si no aplica oferta, pon string vacío.
+
+EJEMPLOS DE BUEN TONO:
+- "Buen día {{nombre}}, le escribimos de la droguería. Notamos que ha sido un par de meses desde su última compra del tratamiento que venía manejando. Si lo desea podemos coordinar la reposición y enviarla. Quedamos atentos."
+- "Hola {{nombre}}, le saluda la droguería. Es momento de la próxima reposición de su medicamento habitual. Si gusta podemos prepararlo para que lo recoja o se lo enviamos. Cuéntenos cómo prefiere."
+
+EJEMPLOS DE MAL TONO (NO HACER):
+- "Hola {{nombre}}!! Volvé pronto que te extrañamos 😍 Tenemos OFERTÓN para vos!"
+- "Parce, hace rato no te vemos! Vení que te damos descuentazo!"`;
 
   try {
     const result = await model.generateContent(prompt);
@@ -417,7 +432,7 @@ export async function GET(req: NextRequest) {
   if (!hasDatabase) {
     return NextResponse.json({ error: "DATABASE_URL no configurada" }, { status: 500 });
   }
-  if (!isAuthorized(req)) {
+  if (!(await isAuthorized(req))) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

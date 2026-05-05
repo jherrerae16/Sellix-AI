@@ -75,19 +75,19 @@ function ChurnDetailDrawer({ cliente, onClose }: { cliente: ClienteChurnV2; onCl
           <div className="grid grid-cols-2 gap-3">
             <div className="bg-red-50 border border-red-200 rounded-xl p-3">
               <p className="text-xs text-red-700 uppercase">Sin comprar hace</p>
-              <p className="text-xl font-bold text-red-800">{cliente.dias_sin_comprar}d</p>
+              <p className="text-xl font-bold text-red-800">{Math.round(cliente.dias_sin_comprar ?? 0)}d</p>
             </div>
             <div className="bg-gray-50 border border-gray-200 rounded-xl p-3">
               <p className="text-xs text-gray-600 uppercase">Frecuencia habitual</p>
-              <p className="text-xl font-bold text-gray-900">{cliente.frecuencia_dias}d</p>
+              <p className="text-xl font-bold text-gray-900">{Math.round(cliente.frecuencia_dias ?? 0)}d</p>
             </div>
             <div className="bg-blue-50 border border-blue-200 rounded-xl p-3">
               <p className="text-xs text-blue-700 uppercase">Compras totales</p>
-              <p className="text-xl font-bold text-blue-800">{cliente.total_compras}</p>
+              <p className="text-xl font-bold text-blue-800">{cliente.total_compras ?? 0}</p>
             </div>
             <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3">
               <p className="text-xs text-emerald-700 uppercase">Ingreso total</p>
-              <p className="text-lg font-bold text-emerald-800">{formatCOP(cliente.ingreso_total)}</p>
+              <p className="text-lg font-bold text-emerald-800">{formatCOP(cliente.ingreso_total ?? 0)}</p>
             </div>
           </div>
 
@@ -96,10 +96,10 @@ function ChurnDetailDrawer({ cliente, onClose }: { cliente: ClienteChurnV2; onCl
             <p className="text-xs text-gray-500 uppercase mb-2">Indicador de abandono</p>
             <div className="flex items-baseline gap-2">
               <span className={`text-3xl font-bold ${
-                cliente.churn_ratio >= 3 ? "text-red-600" :
-                cliente.churn_ratio >= 1.5 ? "text-orange-500" : "text-emerald-600"
+                (cliente.churn_ratio ?? 0) >= 3 ? "text-red-600" :
+                (cliente.churn_ratio ?? 0) >= 1.5 ? "text-orange-500" : "text-emerald-600"
               }`}>
-                {cliente.churn_ratio.toFixed(1)}x
+                {Number(cliente.churn_ratio ?? 0).toFixed(1)}x
               </span>
               <span className="text-xs text-gray-500">su frecuencia normal</span>
             </div>
@@ -124,7 +124,7 @@ function ChurnDetailDrawer({ cliente, onClose }: { cliente: ClienteChurnV2; onCl
           </div>
 
           {/* Tratamientos abandonados */}
-          {cliente.tratamientos_abandonados.length > 0 && (
+          {(cliente.tratamientos_abandonados ?? []).length > 0 && (
             <div>
               <h3 className="text-xs font-semibold text-gray-500 uppercase mb-2 flex items-center gap-1">
                 <AlertTriangle className="w-3.5 h-3.5 text-red-500" /> Tratamientos abandonados
@@ -157,7 +157,7 @@ function ChurnDetailDrawer({ cliente, onClose }: { cliente: ClienteChurnV2; onCl
           )}
 
           {/* Tratamientos activos */}
-          {cliente.tratamientos_activos.length > 0 && (
+          {(cliente.tratamientos_activos ?? []).length > 0 && (
             <div>
               <h3 className="text-xs font-semibold text-gray-500 uppercase mb-2 flex items-center gap-1">
                 <Heart className="w-3.5 h-3.5 text-emerald-500" /> Tratamientos activos

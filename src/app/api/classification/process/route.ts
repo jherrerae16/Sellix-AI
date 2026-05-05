@@ -13,6 +13,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { GoogleGenerativeAI, SchemaType, type Schema } from "@google/generative-ai";
 import { sql, hasDatabase } from "@/lib/db";
+import { auth } from "@/auth";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -217,13 +218,14 @@ async function markQueueFailed(ids: number[], errorMsg: string): Promise<void> {
 
 // ── Auth ─────────────────────────────────────────────────────
 
-function isAuthorized(req: NextRequest): boolean {
+async function isAuthorized(req: NextRequest): Promise<boolean> {
+  // Aceptar Bearer (cron) O sesión NextAuth (botón UI desde /upload).
   const secret = process.env.CRON_SECRET;
-  // Fail-closed: si CRON_SECRET no está configurado, NO se permite acceso.
-  // En dev, configura CRON_SECRET en .env.local.
-  if (!secret) return false;
-  const auth = req.headers.get("authorization");
-  return auth === `Bearer ${secret}`;
+  if (secret && req.headers.get("authorization") === `Bearer ${secret}`) {
+    return true;
+  }
+  const session = await auth();
+  return !!session?.user;
 }
 
 // ── Handler ──────────────────────────────────────────────────
@@ -232,7 +234,7 @@ export async function GET(req: NextRequest) {
   if (!hasDatabase) {
     return NextResponse.json({ error: "DATABASE_URL no configurada" }, { status: 500 });
   }
-  if (!isAuthorized(req)) {
+  if (!(await isAuthorized(req))) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

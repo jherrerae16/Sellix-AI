@@ -9,7 +9,7 @@ export const maxDuration = 60;
 import { getChurnV2, getChurnResumen } from "@/lib/dataService";
 import { ChurnV2Table } from "@/components/tables/ChurnV2Table";
 import {
-  AlertTriangle, TrendingDown, Heart, Clock, XCircle, Sparkles, Activity,
+  AlertTriangle, Heart, XCircle, Sparkles, Activity,
 } from "lucide-react";
 import { AdminOnly } from "@/components/layout/AdminOnly";
 import { PageHeader } from "@/components/ui/PageHeader";
@@ -82,7 +82,7 @@ export default async function ChurnPage() {
       {/* Stat cards */}
       <div>
         <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Distribución</p>
-        <div className="grid grid-cols-2 lg:grid-cols-7 gap-3">
+        <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
           <StatCard
             label="Activos"
             value={byTipo.activo || 0}
@@ -118,20 +118,6 @@ export default async function ChurnPage() {
             accent="red"
             size="sm"
           />
-          <StatCard
-            label="Downgrade"
-            value={byTipo.downgrade || 0}
-            icon={<TrendingDown className="w-4 h-4" />}
-            accent="amber"
-            size="sm"
-          />
-          <StatCard
-            label="VIP inactivo"
-            value={byTipo.alto_valor_inactivo || 0}
-            icon={<Clock className="w-4 h-4" />}
-            accent="violet"
-            size="sm"
-          />
         </div>
       </div>
 
@@ -143,7 +129,7 @@ export default async function ChurnPage() {
             <h3 className="text-sm font-bold text-gray-900">Top tratamientos abandonados</h3>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-            {resumen.top_tratamientos_abandonados.slice(0, 8).map((t, i) => (
+            {resumen.top_tratamientos_abandonados.slice(0, 5).map((t, i) => (
               <div
                 key={t.tratamiento}
                 className="flex items-center justify-between p-3 rounded-xl bg-gradient-to-r from-red-50 to-transparent border border-red-100 hover:border-red-200 transition-colors"

@@ -6,11 +6,8 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { GoogleGenerativeAI } from "@google/generative-ai";
-import { readFile } from "fs/promises";
-import { join } from "path";
+import { sql, hasDatabase, DEFAULT_TENANT_ID } from "@/lib/db";
 import type { ProductPrice } from "@/lib/types";
-
-const CATALOG_PATH = join(process.cwd(), "data", "output", "precios_catalogo.json");
 
 interface CatalogEntry {
   codigo: string;
@@ -86,18 +83,49 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ results: [], total: 0, source: "catalog" });
     }
 
-    // 1. Search our catalog
-    const raw = await readFile(CATALOG_PATH, "utf-8");
-    const catalog: CatalogEntry[] = JSON.parse(raw);
+    // 1. Search Postgres catalog: productos_tenant + counts from ventas
+    if (!hasDatabase) {
+      return NextResponse.json({ results: [], total: 0, source: "catalog" });
+    }
 
     const words = query.split(/\s+/).filter(Boolean);
-    const matches = catalog.filter((p) => {
-      const nombre = p.nombre.toLowerCase();
-      return words.every((w) => nombre.includes(w));
-    });
+    if (!words.length) {
+      return NextResponse.json({ results: [], total: 0, source: "catalog" });
+    }
 
-    // Sort by most transactions (popular = relevant)
-    matches.sort((a, b) => b.transacciones - a.transacciones);
+    // ILIKE pattern por palabra: todos los términos deben aparecer en el nombre.
+    const ilikeConditions = words.map((w) => `pt.nombre ILIKE '%' || ${`'${w.replace(/'/g, "''")}'`} || '%'`).join(" AND ");
+    const rawRows = await sql<{
+      codigo: string; nombre: string;
+      precio_unidad: string | null; precio_caja: string | null;
+      transacciones: number;
+    }[]>`
+      SELECT
+        pt.codigo,
+        pt.nombre,
+        pt.precio_unidad,
+        pt.precio_caja,
+        COALESCE((
+          SELECT COUNT(*)::int FROM ventas v
+          LEFT JOIN uploads u ON u.id = v.upload_id
+          WHERE v.tenant_id = pt.tenant_id
+            AND v.codigo = pt.codigo
+            AND (u.active IS NULL OR u.active = true)
+        ), 0) AS transacciones
+      FROM productos_tenant pt
+      WHERE pt.tenant_id = ${DEFAULT_TENANT_ID}
+        AND ${sql.unsafe(ilikeConditions)}
+      ORDER BY transacciones DESC
+      LIMIT ${limit * 3}
+    `;
+
+    const matches: CatalogEntry[] = rawRows.map((r) => ({
+      codigo: r.codigo,
+      nombre: r.nombre,
+      precio_unidad: Number(r.precio_unidad) || 0,
+      precio_caja: Number(r.precio_caja) || 0,
+      transacciones: Number(r.transacciones) || 0,
+    }));
     const topMatches = matches.slice(0, limit);
 
     // 2. Search competitor prices via Gemini (for the top product only, to save API calls)
@@ -174,13 +202,6 @@ export async function GET(request: NextRequest) {
       competitor_count: competitorPrices.length,
     });
   } catch (err) {
-    if ((err as NodeJS.ErrnoException).code === "ENOENT") {
-      return NextResponse.json({
-        error: "Catálogo no generado. Suba ventas y ejecute POST /api/products/generate",
-        results: [],
-        total: 0,
-      });
-    }
     return NextResponse.json(
       { error: err instanceof Error ? err.message : "Error buscando productos" },
       { status: 500 }
