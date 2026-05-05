@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import type { Conversation, ConversationStage } from "@/lib/types";
 import { formatCOP, formatDate } from "@/lib/formatters";
+import { InsightsPanel } from "./InsightsPanel";
 
 interface ChatDetailProps {
   conversation: Conversation;
@@ -303,6 +304,9 @@ export function ChatDetail({ conversation: conv, onAction }: ChatDetailProps) {
           </div>
         </div>
       </div>
+
+      {/* AI Insights — third column */}
+      <InsightsPanel conversation={conv} />
     </div>
   );
 }

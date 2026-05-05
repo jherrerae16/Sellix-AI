@@ -3,6 +3,10 @@
     {
       "path": "/api/classification/process",
       "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/actions/prepare",
+      "schedule": "0 */6 * * *"
     }
   ]
 }

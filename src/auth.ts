@@ -15,11 +15,14 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       const { pathname } = request.nextUrl;
       const isLoggedIn = !!auth?.user;
 
-      // Public routes — no auth required
+      // Public routes — no auth required at NextAuth level.
+      // Cron endpoints validate their own Bearer token internally.
       const publicPaths = [
         "/auth/signin",
         "/api/auth",
         "/api/whatsapp/webhook",
+        "/api/classification/process",   // Vercel cron + Bearer
+        "/api/actions/prepare",          // Vercel cron + Bearer
         "/welcome",
       ];
 
