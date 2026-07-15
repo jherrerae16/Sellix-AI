@@ -1,125 +1,129 @@
 # Sellix AI
 
-Plataforma SaaS de inteligencia comercial y CRM por WhatsApp para droguerías en Colombia, desarrollada por **Next AI Tech LLC**.
+Sales intelligence and WhatsApp CRM SaaS for pharmacies in Colombia, built by
+**Next AI Tech LLC**.
 
-**Demo en producción:** https://sellix-ai-mvp.vercel.app
+**Live demo:** https://sellix-ai-mvp.vercel.app
 
-## Qué hace
+## What it does
 
-Sellix AI transforma datos de ventas de farmacias en decisiones comerciales concretas y convierte WhatsApp en un canal completo de ventas:
+Sellix AI turns pharmacy sales data into concrete commercial decisions and turns
+WhatsApp into a complete sales channel:
 
-- **Dashboard de ventas** — KPIs, tendencias, top productos en tiempo real
-- **Detección de churn** — Identifica clientes en riesgo de abandono
-- **Predicción de reposición** — Anticipa cuándo el cliente necesita su medicamento
-- **Venta cruzada** — Recomendaciones de productos que se compran juntos
-- **Segmentación VIP/RFM** — Clasifica clientes por valor (VIP, Leal, En desarrollo, En riesgo)
-- **Productos gancho** — Identifica qué productos generan tráfico
-- **CRM WhatsApp** — Inbox de conversaciones con embudo de ventas
-- **Motor de campañas** — Envío de WhatsApp y email con plantillas editables
-- **Cotizador de precios** — Precios reales vs competencia vía Google Search
-- **Análisis de recetas** — El cliente envía foto de receta → IA detecta medicamentos → precios automáticos
-- **Copiloto IA** — Chat en lenguaje natural para consultar datos del sistema
-- **Next Best Action** — Acciones priorizadas con impacto estimado en ingresos
+- **Sales dashboard** — KPIs, trends, top products in real time
+- **Churn detection** — Flags customers at risk of leaving
+- **Refill prediction** — Anticipates when a customer needs their medication again
+- **Cross-selling** — Recommends products frequently bought together
+- **VIP/RFM segmentation** — Ranks customers by value (VIP, Loyal, Developing, At risk)
+- **Loss leaders** — Identifies which products drive foot traffic
+- **WhatsApp CRM** — Conversation inbox with a sales funnel
+- **Campaign engine** — WhatsApp and email sending with editable templates
+- **Price quoter** — Real prices vs. competitors via Google Search
+- **Prescription analysis** — Customer sends a photo → AI detects the medications → automatic pricing
+- **AI copilot** — Natural-language chat to query system data
+- **Next Best Action** — Prioritized actions with estimated revenue impact
 
 ## Tech Stack
 
-| Capa | Tecnología |
+| Layer | Technology |
 |------|-----------|
 | Frontend | Next.js 14, React 18, TypeScript, Tailwind CSS |
 | Auth | NextAuth v5, JWT, Edge Runtime middleware |
 | Charts | Recharts |
 | Tables | TanStack Table v8 |
-| WhatsApp | Twilio (webhook + envío) |
+| WhatsApp | Twilio (webhook + sending) |
 | Email | Resend |
-| IA / Vision | Google Gemini 2.5 Flash (gratis) |
-| Base de datos | Redis (Vercel KV / ioredis) |
+| AI / Vision | Google Gemini 2.5 Flash (free tier) |
+| Database | Redis (Vercel KV / ioredis) |
 | ETL | Python, pandas, openpyxl |
 | Deploy | Vercel |
 
-## Estructura del Proyecto
+## Project structure
 
 ```
 src/
-├── app/                         # Páginas y API routes
-│   ├── page.tsx                 # Resumen Ejecutivo
+├── app/                         # Pages and API routes
+│   ├── page.tsx                 # Executive summary
 │   ├── acciones/                # Next Best Action
-│   ├── cotizador/               # Comparador de precios
-│   ├── inbox/                   # CRM WhatsApp
-│   ├── churn/                   # Riesgo de abandono
-│   ├── reposicion/              # Predicción de reposición
-│   ├── cruzada/                 # Venta cruzada
-│   ├── vip/                     # Segmentación RFM
-│   ├── gancho/                  # Productos gancho
-│   ├── comisiones/              # Panel Next AI Tech
-│   ├── upload/                  # Gestión de datos
+│   ├── cotizador/               # Price comparison
+│   ├── inbox/                   # WhatsApp CRM
+│   ├── churn/                   # Churn risk
+│   ├── reposicion/              # Refill prediction
+│   ├── cruzada/                 # Cross-selling
+│   ├── vip/                     # RFM segmentation
+│   ├── gancho/                  # Loss leaders
+│   ├── comisiones/              # Next AI Tech panel
+│   ├── upload/                  # Data management
 │   ├── auth/signin/             # Login
 │   └── api/
 │       ├── auth/                # NextAuth
-│       ├── whatsapp/webhook/    # Recibe mensajes WhatsApp
-│       ├── whatsapp/send/       # Envía mensajes WhatsApp
-│       ├── crm/                 # CRUD conversaciones
-│       ├── campaigns/send/      # Motor de campañas
-│       ├── campaigns/attribution/ # Atribución + comisiones
-│       ├── copilot/             # Chat IA (Gemini)
+│       ├── whatsapp/webhook/    # Receives WhatsApp messages
+│       ├── whatsapp/send/       # Sends WhatsApp messages
+│       ├── crm/                 # Conversation CRUD
+│       ├── campaigns/send/      # Campaign engine
+│       ├── campaigns/attribution/ # Attribution + commissions
+│       ├── copilot/             # AI chat (Gemini)
 │       ├── actions/             # Next Best Action
-│       ├── products/search/     # Búsqueda + precios
-│       ├── products/generate/   # Genera catálogo de precios
-│       └── upload/              # Upload de Excel
+│       ├── products/search/     # Search + pricing
+│       ├── products/generate/   # Generates the price catalog
+│       └── upload/              # Excel upload
 ├── components/
 │   ├── auth/                    # Login form
-│   ├── cajero/                  # Vista punto de venta
-│   ├── campaigns/               # Wrappers de campañas
-│   ├── charts/                  # 5 visualizaciones
-│   ├── copilot/                 # Chat IA
+│   ├── cajero/                  # Point-of-sale view
+│   ├── campaigns/               # Campaign wrappers
+│   ├── charts/                  # 5 visualizations
+│   ├── copilot/                 # AI chat
 │   ├── inbox/                   # CRM (ChatList, ChatDetail, Funnel)
 │   ├── landing/                 # Landing page
 │   ├── layout/                  # AppShell, Sidebar, TopBar
-│   ├── tables/                  # 5 tablas de datos
-│   └── ui/                      # Componentes reutilizables
+│   ├── tables/                  # 5 data tables
+│   └── ui/                      # Reusable components
 └── lib/
-    ├── authConfig.ts            # Configuración NextAuth
+    ├── authConfig.ts            # NextAuth configuration
     ├── types.ts                 # TypeScript interfaces
-    ├── dataService.ts           # Lectura de JSON
-    ├── crmStore.ts              # Persistencia Redis
-    ├── crmData.ts               # Modelos CRM
-    ├── funnelEngine.ts          # Motor automático del embudo
-    ├── prescriptionAnalyzer.ts  # Gemini Vision para recetas
-    ├── campaignTemplates.ts     # Plantillas de mensajes
-    ├── formatters.ts            # COP, fechas, porcentajes
-    ├── RoleContext.tsx          # Control de roles
+    ├── dataService.ts           # JSON reading
+    ├── crmStore.ts              # Redis persistence
+    ├── crmData.ts               # CRM models
+    ├── funnelEngine.ts          # Automatic funnel engine
+    ├── prescriptionAnalyzer.ts  # Gemini Vision for prescriptions
+    ├── campaignTemplates.ts     # Message templates
+    ├── formatters.ts            # COP, dates, percentages
+    ├── RoleContext.tsx          # Role control
     └── ...
 ```
 
+> Route and directory names stay in Spanish — they are real paths in the codebase.
+
 ## Roles
 
-| Rol | Acceso |
+| Role | Access |
 |-----|--------|
-| **Admin** | Dashboard completo, campañas, inbox, cotizador, upload |
-| **Cajero** | Vista simplificada: búsqueda de clientes, venta cruzada, reposición |
-| **Next AI Tech** | Panel de comisiones y atribución de campañas |
+| **Admin** | Full dashboard, campaigns, inbox, quoter, upload |
+| **Cajero** (cashier) | Simplified view: customer search, cross-selling, refills |
+| **Next AI Tech** | Commission and campaign attribution panel |
 
-## Setup Local
+## Local setup
 
 ```bash
-# Instalar dependencias
+# Install dependencies
 npm install
 
-# Copiar variables de entorno
+# Copy environment variables
 cp .env.local.example .env.local
-# Editar .env.local con tus credenciales
+# Edit .env.local with your credentials
 
-# Servidor de desarrollo
+# Development server
 npm run dev
 ```
 
-## Variables de Entorno
+## Environment variables
 
 ```env
 # Auth
 APP_USER=admin
-APP_PASSWORD=tu_contraseña
-NEXTAUTH_SECRET=genera_con_openssl_rand_base64_32
-NEXTAUTH_URL=https://tu-app.vercel.app
+APP_PASSWORD=your_password
+NEXTAUTH_SECRET=generate_with_openssl_rand_base64_32
+NEXTAUTH_URL=https://your-app.vercel.app
 
 # WhatsApp (Twilio)
 TWILIO_ACCOUNT_SID=ACxxxxxxxxx
@@ -129,39 +133,39 @@ TWILIO_WHATSAPP_FROM=whatsapp:+14155238886
 # Email (Resend)
 RESEND_API_KEY=re_xxxxxxxxx
 
-# IA (Gemini — gratis)
+# AI (Gemini — free tier)
 GEMINI_API_KEY=AIzaSyxxxxxxxxx
 
-# Redis (para CRM en Vercel)
+# Redis (for CRM on Vercel)
 REDIS_URL=redis://default:xxx@xxx
 
 # Demo
-DEMO_EMAIL=tu@email.com
+DEMO_EMAIL=your@email.com
 DEMO_PHONE=whatsapp:+57xxxxxxxxx
 COMMISSION_RATE=0.05
 ```
 
-## Deploy a Vercel
+## Deploy to Vercel
 
-1. Push a GitHub
-2. Importar en Vercel
-3. Agregar variables de entorno
-4. Conectar KV (Redis) desde Storage
-5. Configurar webhook de Twilio: `https://tu-app.vercel.app/api/whatsapp/webhook`
+1. Push to GitHub
+2. Import into Vercel
+3. Add the environment variables
+4. Connect KV (Redis) from Storage
+5. Configure the Twilio webhook: `https://your-app.vercel.app/api/whatsapp/webhook`
 
-## Flujo WhatsApp
+## WhatsApp flow
 
 ```
-Cliente envía mensaje/foto → Twilio → Webhook → Redis
+Customer sends message/photo → Twilio → Webhook → Redis
                                                     ↓
-Admin ve en Inbox → Responde → Twilio → WhatsApp del cliente
+Admin sees it in Inbox → Replies → Twilio → Customer's WhatsApp
 
-Si envía foto de receta:
-  → Gemini Vision analiza → Extrae medicamentos
-  → Busca en catálogo → Envía precios al cliente
+If a prescription photo is sent:
+  → Gemini Vision analyzes it → Extracts medications
+  → Looks them up in the catalog → Sends prices to the customer
 ```
 
 ---
 
 *Next AI Tech LLC · Miami, Florida · 2026*
-*Cliente piloto: Droguería Super Ofertas · Barranquilla, Colombia*
+*Pilot customer: Droguería Super Ofertas · Barranquilla, Colombia*
