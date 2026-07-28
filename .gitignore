@@ -65,3 +65,7 @@ coverage/
 
 # Claude Code
 .claude/skills/
+
+# Configuración local de agentes
+.agents/
+AGENTS.md
