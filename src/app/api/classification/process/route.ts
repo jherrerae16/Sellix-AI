@@ -13,6 +13,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { GoogleGenerativeAI, SchemaType, type Schema } from "@google/generative-ai";
 import { sql, hasDatabase } from "@/lib/db";
+import { getPackForTenant, type VerticalPack } from "@/lib/packs";
 import { auth } from "@/auth";
 
 export const dynamic = "force-dynamic";
@@ -55,6 +56,7 @@ const CLASSIFICATION_SCHEMA: Schema = {
 
 interface QueueItem {
   id: number;
+  tenant_id: string;
   codigo: string;
   nombre: string;
   attempts: number;
@@ -105,16 +107,20 @@ interface MasterRow {
  * empiece con el mismo token significativo. Si encuentra, copia
  * la clasificación. Ahorra una llamada a Gemini.
  */
-async function tryFuzzyMatch(item: QueueItem): Promise<Classified | null> {
+async function tryFuzzyMatch(item: QueueItem, packId: string): Promise<Classified | null> {
   const token = getSignificantToken(item.nombre);
   if (!token) return null;
 
+  // El filtro por pack_id es obligatorio: la taxonomía de un código solo
+  // es válida dentro del vertical bajo el que se clasificó. Un código
+  // clasificado como farmacéutico no sirve a un pet shop (PRD v4.0 §5.3).
   const matches = await sql<MasterRow[]>`
     SELECT codigo, nombre_normalizado, principio_activo, categoria_atc,
            categoria_terapeutica, subcategoria, tipo_tratamiento,
            tratamiento, es_cronico, es_receta
-    FROM productos_master
+    FROM productos_master_v3
     WHERE classification_source IS NOT NULL
+      AND pack_id = ${packId}
       AND UPPER(nombre_normalizado) LIKE ${"%" + token + "%"}
     LIMIT 5
   `;
@@ -142,6 +148,8 @@ async function tryFuzzyMatch(item: QueueItem): Promise<Classified | null> {
 
 async function classifyWithGemini(
   items: QueueItem[],
+  /** Prompt del Vertical Pack — el Core no sabe qué vende el negocio. */
+  clasificadorPrompt: string,
   attempt = 1,
 ): Promise<Classified[]> {
   const apiKey = process.env.GEMINI_API_KEY;
@@ -156,7 +164,7 @@ async function classifyWithGemini(
     },
   });
 
-  const prompt = `Clasifica estos productos farmacéuticos colombianos. Responde SOLO JSON según el schema.
+  const prompt = `${clasificadorPrompt}
 
 Productos:
 ${items.map((p) => `- ${p.codigo}: ${p.nombre}`).join("\n")}`;
@@ -169,7 +177,7 @@ ${items.map((p) => `- ${p.codigo}: ${p.nombre}`).join("\n")}`;
   } catch (err) {
     if (attempt < 2) {
       await new Promise((r) => setTimeout(r, RETRY_DELAY_MS));
-      return classifyWithGemini(items, attempt + 1);
+      return classifyWithGemini(items, clasificadorPrompt, attempt + 1);
     }
     throw err;
   }
@@ -177,17 +185,25 @@ ${items.map((p) => `- ${p.codigo}: ${p.nombre}`).join("\n")}`;
 
 // ── Persistir ────────────────────────────────────────────────
 
-async function persistClassified(c: Classified, source: "fuzzy_match" | "gemini"): Promise<void> {
+// Escribe con los nombres de columna genéricos (PRD v4.0 §5.2). El
+// modelo de Gemini todavía responde con el vocabulario farmacéutico;
+// la traducción ocurre aquí hasta que el schema salga del pack (Fase B).
+async function persistClassified(
+  c: Classified,
+  source: "fuzzy_match" | "gemini",
+  packId: string,
+): Promise<void> {
   await sql`
     UPDATE productos_master SET
-      principio_activo = ${c.principio_activo},
-      categoria_atc = ${c.categoria_atc ?? null},
-      categoria_terapeutica = ${c.categoria_terapeutica},
+      atributo_clave = ${c.principio_activo},
+      codigo_externo = ${c.categoria_atc ?? null},
+      categoria = ${c.categoria_terapeutica},
       subcategoria = ${c.subcategoria ?? null},
-      tipo_tratamiento = ${c.tipo_tratamiento},
-      tratamiento = ${c.tratamiento},
-      es_cronico = ${c.es_cronico},
-      es_receta = ${c.es_receta},
+      tipo_afinidad = ${c.tipo_tratamiento},
+      afinidad = ${c.tratamiento},
+      es_ancla = ${c.es_cronico},
+      requiere_autorizacion = ${c.es_receta},
+      pack_id = ${packId},
       classification_source = ${source},
       classified_at = now(),
       updated_at = now()
@@ -261,21 +277,31 @@ export async function GET(req: NextRequest) {
           LIMIT ${BATCH_SIZE}
           FOR UPDATE SKIP LOCKED
         )
-        RETURNING id, codigo, nombre, attempts
+        RETURNING id, tenant_id, codigo, nombre, attempts
       `;
 
       if (!items.length) break;
       stats.fetched += items.length;
       stats.batches += 1;
 
+      // La cola es global; cada item puede pertenecer a un tenant con
+      // un vertical distinto, así que el pack se resuelve por item.
+      // `getPackForTenant` cachea, de modo que esto es una sola query
+      // por tenant y no por producto.
+      const packDeItem = new Map<number, VerticalPack>();
+      for (const item of items) {
+        packDeItem.set(item.id, await getPackForTenant(item.tenant_id));
+      }
+
       // 1. Fuzzy match local
       const needGemini: QueueItem[] = [];
       const fuzzyDone: number[] = [];
 
       for (const item of items) {
-        const match = await tryFuzzyMatch(item);
+        const pack = packDeItem.get(item.id)!;
+        const match = await tryFuzzyMatch(item, pack.id);
         if (match) {
-          await persistClassified(match, "fuzzy_match");
+          await persistClassified(match, "fuzzy_match", pack.id);
           fuzzyDone.push(item.id);
           stats.fuzzy_matched += 1;
         } else {
@@ -284,14 +310,27 @@ export async function GET(req: NextRequest) {
       }
       await markQueueDone(fuzzyDone);
 
-      // 2. Gemini para el resto
+      // 2. Gemini para el resto — agrupado por pack, porque el prompt
+      //    de clasificación es distinto en cada vertical.
       if (needGemini.length) {
         try {
-          const classified = await classifyWithGemini(needGemini);
-          const classifiedCodigos = new Set(classified.map((c) => c.codigo));
-          for (const c of classified) {
-            await persistClassified(c, "gemini");
+          const porPack = new Map<string, { pack: VerticalPack; items: QueueItem[] }>();
+          for (const item of needGemini) {
+            const pack = packDeItem.get(item.id)!;
+            const entry = porPack.get(pack.id) ?? { pack, items: [] };
+            entry.items.push(item);
+            porPack.set(pack.id, entry);
           }
+
+          const classified: Classified[] = [];
+          for (const { pack, items: grupo } of Array.from(porPack.values())) {
+            const res = await classifyWithGemini(grupo, pack.clasificador_prompt);
+            for (const c of res) {
+              await persistClassified(c, "gemini", pack.id);
+              classified.push(c);
+            }
+          }
+          const classifiedCodigos = new Set(classified.map((c) => c.codigo));
           const okIds = needGemini
             .filter((i) => classifiedCodigos.has(i.codigo))
             .map((i) => i.id);

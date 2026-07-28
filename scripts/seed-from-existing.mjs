@@ -110,17 +110,21 @@ async function seedProductosMaster() {
   const BATCH = 500;
   let inserted = 0;
   for (let i = 0; i < productos.length; i += BATCH) {
+    // El JSON de origen usa el vocabulario farmacéutico de v3; las
+    // columnas destino son genéricas desde la migración 002.
+    // pack_id '001' porque estos datos vienen del vertical farmacia.
     const batch = productos.slice(i, i + BATCH).map((p) => ({
       codigo: String(p.codigo ?? "").trim(),
       nombre_normalizado: String(p.nombre ?? "").trim(),
-      principio_activo: p.principio_activo ?? null,
-      categoria_atc: p.categoria_atc ?? null,
-      categoria_terapeutica: p.categoria_terapeutica ?? null,
+      atributo_clave: p.principio_activo ?? null,
+      codigo_externo: p.categoria_atc ?? null,
+      categoria: p.categoria_terapeutica ?? null,
       subcategoria: p.subcategoria ?? null,
-      tipo_tratamiento: p.tipo_tratamiento ?? null,
-      tratamiento: p.tratamiento ?? null,
-      es_cronico: !!p.es_cronico,
-      es_receta: !!p.es_receta,
+      tipo_afinidad: p.tipo_tratamiento ?? null,
+      afinidad: p.tratamiento ?? null,
+      es_ancla: !!p.es_cronico,
+      requiere_autorizacion: !!p.es_receta,
+      pack_id: "001",
       classification_source: "gemini",
       classified_at: new Date(),
     })).filter((p) => p.codigo && p.nombre_normalizado);
@@ -131,10 +135,10 @@ async function seedProductosMaster() {
       INSERT INTO productos_master ${sql(batch)}
       ON CONFLICT (codigo) DO UPDATE SET
         nombre_normalizado = EXCLUDED.nombre_normalizado,
-        categoria_terapeutica = EXCLUDED.categoria_terapeutica,
-        tratamiento = EXCLUDED.tratamiento,
-        es_cronico = EXCLUDED.es_cronico,
-        es_receta = EXCLUDED.es_receta,
+        categoria = EXCLUDED.categoria,
+        afinidad = EXCLUDED.afinidad,
+        es_ancla = EXCLUDED.es_ancla,
+        requiere_autorizacion = EXCLUDED.requiere_autorizacion,
         updated_at = now()
     `;
     inserted += batch.length;

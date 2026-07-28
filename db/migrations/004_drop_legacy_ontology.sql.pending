@@ -1,0 +1,75 @@
+-- =============================================================
+-- Sellix AI — Migración 004: CONTRACT (elimina ontología legado v3)
+--
+-- ⚠️  NO APLICAR TODAVÍA. Extensión .pending a propósito.
+--
+-- Esta es la segunda mitad del expand-contract iniciado en 002.
+-- Elimina las columnas farmacéuticas y el trigger de sincronización.
+--
+-- PRECONDICIONES — verificar TODAS antes de renombrar a .sql y aplicar:
+--
+--   1. Ningún código en producción referencia las columnas legado.
+--      Verificar con:
+--        grep -rn "categoria_terapeutica\|tratamiento\|es_cronico\|es_receta\|principio_activo\|categoria_atc" src/ scripts/
+--      Solo deben aparecer dentro de la definición de la vista
+--      productos_master_v3 (como alias) o en comentarios.
+--
+--   2. El deploy con el código nuevo lleva al menos 24h estable en
+--      producción, sin rollback pendiente.
+--
+--   3. Paridad verificada (PRD §11, criterio de salida de Fase B):
+--      el tenant superofertas produce los mismos conteos de churn,
+--      pares de venta cruzada y reposiciones que antes de la migración.
+--
+--   4. Backup/branch de Neon tomado inmediatamente antes.
+--      Este paso SÍ destruye datos: las columnas legado se pierden.
+--
+-- La vista productos_master_v3 sobrevive a esta migración y sigue
+-- sirviendo los nombres viejos sobre las columnas genéricas. Se
+-- elimina en una migración 005, ya sin urgencia.
+-- =============================================================
+
+BEGIN;
+
+-- 1. Quitar la sincronización: sin columnas legado no tiene sentido.
+DROP TRIGGER IF EXISTS productos_master_sync_ontologia ON productos_master;
+DROP FUNCTION IF EXISTS sync_ontologia_v3_v4();
+
+-- 2. Guardia: abortar si alguna fila tiene dato legado sin su
+--    equivalente genérico. Indicaría que la sincronización falló y
+--    que borrar perdería información.
+DO $$
+DECLARE huerfanas INTEGER;
+BEGIN
+  SELECT COUNT(*) INTO huerfanas FROM productos_master
+  WHERE (categoria_terapeutica IS NOT NULL AND categoria IS NULL)
+     OR (tratamiento           IS NOT NULL AND afinidad  IS NULL)
+     OR (principio_activo      IS NOT NULL AND atributo_clave IS NULL);
+  IF huerfanas > 0 THEN
+    RAISE EXCEPTION
+      'Abortado: % filas tienen dato legado sin equivalente genérico. Revisar la sincronización antes de borrar.',
+      huerfanas;
+  END IF;
+END $$;
+
+-- 3. Índices legado.
+DROP INDEX IF EXISTS productos_master_categoria_idx;
+DROP INDEX IF EXISTS productos_master_tratamiento_idx;
+
+-- 4. La vista depende de las columnas genéricas, no de las legado,
+--    así que no hay que recrearla. Se borran las columnas.
+ALTER TABLE productos_master
+  DROP COLUMN IF EXISTS categoria_terapeutica,
+  DROP COLUMN IF EXISTS tratamiento,
+  DROP COLUMN IF EXISTS tipo_tratamiento,
+  DROP COLUMN IF EXISTS es_cronico,
+  DROP COLUMN IF EXISTS es_receta,
+  DROP COLUMN IF EXISTS principio_activo,
+  DROP COLUMN IF EXISTS categoria_atc;
+
+COMMENT ON TABLE productos_master IS
+  'Catálogo global de taxonomía, compartido entre tenants para amortizar el costo de clasificación por LLM. '
+  'EXENTA DE RLS de forma intencional (PRD v4.0 §7.2): no contiene PII ni precios, solo taxonomía de producto. '
+  'La validez de una clasificación está acotada por pack_id.';
+
+COMMIT;

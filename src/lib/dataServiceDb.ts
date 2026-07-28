@@ -117,7 +117,10 @@ async function getAllVentas(tenantId: string): Promise<VentaRow[]> {
         pm.categoria_terapeutica, pm.tratamiento, pm.es_cronico
       FROM ventas v
       LEFT JOIN clientes c ON c.tenant_id = v.tenant_id AND c.cedula = v.cedula
-      LEFT JOIN productos_master pm ON pm.codigo = v.codigo
+      -- productos_master_v3: vista de compatibilidad con los nombres de
+      -- columna de v3. Migrar a productos_master (categoria/afinidad/es_ancla)
+      -- en la Fase B del PRD v4.0.
+      LEFT JOIN productos_master_v3 pm ON pm.codigo = v.codigo
       LEFT JOIN uploads u ON u.id = v.upload_id
       WHERE v.tenant_id = ${tenantId}
         AND (u.active IS NULL OR u.active = true)
@@ -180,7 +183,7 @@ export async function getProductosClasificadosDb(): Promise<ProductoClasificado[
       SELECT codigo, nombre_normalizado as nombre, principio_activo,
              categoria_atc, categoria_terapeutica, subcategoria,
              tipo_tratamiento, tratamiento, es_cronico, es_receta
-      FROM productos_master
+      FROM productos_master_v3
       WHERE classification_source IS NOT NULL
     `;
     return rows.map((r) => ({
@@ -877,7 +880,7 @@ export async function getBundlesDb(tenantId = DEFAULT_TENANT_ID): Promise<Bundle
         pm.tratamiento,
         pt.precio_unidad,
         pt.precio_caja
-      FROM productos_master pm
+      FROM productos_master_v3 pm
       LEFT JOIN productos_tenant pt ON pt.codigo = pm.codigo AND pt.tenant_id = ${tenantId}
       WHERE pm.codigo = ANY(${todosCodigos})
     `;
