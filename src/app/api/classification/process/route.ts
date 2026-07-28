@@ -115,10 +115,16 @@ async function tryFuzzyMatch(item: QueueItem, packId: string): Promise<Classifie
   // es válida dentro del vertical bajo el que se clasificó. Un código
   // clasificado como farmacéutico no sirve a un pet shop (PRD v4.0 §5.3).
   const matches = await sql<MasterRow[]>`
-    SELECT codigo, nombre_normalizado, principio_activo, categoria_atc,
-           categoria_terapeutica, subcategoria, tipo_tratamiento,
-           tratamiento, es_cronico, es_receta
-    FROM productos_master_v3
+    SELECT codigo, nombre_normalizado,
+           atributo_clave        AS principio_activo,
+           codigo_externo        AS categoria_atc,
+           categoria             AS categoria_terapeutica,
+           subcategoria,
+           tipo_afinidad         AS tipo_tratamiento,
+           afinidad              AS tratamiento,
+           es_ancla              AS es_cronico,
+           requiere_autorizacion AS es_receta
+    FROM productos_master
     WHERE classification_source IS NOT NULL
       AND pack_id = ${packId}
       AND UPPER(nombre_normalizado) LIKE ${"%" + token + "%"}

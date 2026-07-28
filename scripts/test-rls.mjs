@@ -31,7 +31,7 @@ const MIGRATIONS = [
   "db/migrations/002_generic_ontology.sql",
   "db/migrations/003_seed_packs.sql",
   "db/migrations/005_users.sql",
-  "db/migrations/006_rls.sql.pending",
+  "db/migrations/006_rls.sql",
 ];
 
 function sh(cmd, opts = {}) {
@@ -111,7 +111,7 @@ async function run() {
       SELECT v.cedula, c.nombre, v.producto
       FROM ventas v
       LEFT JOIN clientes c ON c.tenant_id = v.tenant_id AND c.cedula = v.cedula
-      LEFT JOIN productos_master_v3 pm ON pm.codigo = v.codigo
+      LEFT JOIN productos_master pm ON pm.codigo = v.codigo
       LEFT JOIN uploads u ON u.id = v.upload_id
       WHERE v.tenant_id = ${tenant} AND (u.active IS NULL OR u.active = true)
     `);

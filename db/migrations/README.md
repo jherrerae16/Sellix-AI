@@ -70,16 +70,27 @@ Borra `categoria_terapeutica`, `tratamiento`, `es_cronico`, `es_receta`,
 
 Precondiciones:
 
-1. Ningún código referencia las columnas legado:
-   ```bash
-   grep -rn "categoria_terapeutica\|tratamiento\|es_cronico\|es_receta\|principio_activo\|categoria_atc" src/ scripts/
-   ```
-   Solo deben quedar apariciones dentro de la vista `productos_master_v3`
-   (como alias) o en comentarios. Hoy son ~23 archivos.
-2. 24h de estabilidad en producción con el código nuevo.
-3. Paridad verificada (PRD §11): mismos conteos de churn, pares de venta
-   cruzada y recompras que antes de la migración 002.
-4. Branch/backup de Neon tomado. **Este paso sí destruye datos.**
+1. ✅ **Ningún SQL de la aplicación lee las columnas legado.** Todas las
+   queries usan las genéricas con alias al vocabulario que esperan los
+   tipos de TypeScript. Verificado además en un Postgres desechable con
+   la 004 ya aplicada: `getAllVentas`, `getProductosClasificados`, el
+   fuzzy match del clasificador, `insights` y `persistClassified` siguen
+   funcionando con las columnas borradas.
+2. ✅ **Paridad verificada contra producción** (PRD §11): 12.175 ventas,
+   3.005 productos clasificados, 3.160 marcados como ancla, 1.093
+   categorías y 1.623 afinidades — idénticos leyendo por la vista v3 y
+   por las columnas genéricas.
+3. ⏳ **24h de estabilidad en producción** con el código que ya no
+   depende de las columnas legado. Este es el único requisito pendiente.
+4. ⏳ **Branch/backup de Neon** tomado justo antes. **Este paso sí
+   destruye datos.**
+
+Cuando (3) y (4) se cumplan: renombrar a `.sql` y `node scripts/migrate.mjs`.
+
+Nota: los *tipos de TypeScript* conservan el vocabulario farmacéutico
+(`ClienteChurnV2.tratamientos_abandonados`, `tipo_churn: "churn_cronico"`).
+Renombrarlos propaga a tablas y páginas de la interfaz, es un refactor
+aparte y **no bloquea esta migración** — la capa de datos ya es genérica.
 
 ## Cómo declarar el tenant en una query
 

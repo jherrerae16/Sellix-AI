@@ -102,11 +102,10 @@ async function getCustomerHistory(cedula: string): Promise<HistoricalPurchase[]>
       MAX(v.producto) as producto,
       COUNT(*)::int as veces,
       MAX(v.fecha)::text as ultima_fecha,
-      MAX(pm.categoria_terapeutica) as categoria_terapeutica,
-      MAX(pm.tratamiento) as tratamiento
+      MAX(pm.categoria) as categoria_terapeutica,
+      MAX(pm.afinidad)  as tratamiento
     FROM ventas v
-    -- Vista de compatibilidad v3 — migrar en Fase B del PRD v4.0.
-    LEFT JOIN productos_master_v3 pm ON pm.codigo = v.codigo
+    LEFT JOIN productos_master pm ON pm.codigo = v.codigo
     LEFT JOIN uploads u ON u.id = v.upload_id
     WHERE v.tenant_id = ${DEFAULT_TENANT_ID}
       AND v.cedula = ${cedula}

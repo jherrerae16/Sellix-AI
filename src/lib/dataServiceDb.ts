@@ -127,13 +127,16 @@ async function getAllVentas(tenantId: string): Promise<VentaRow[]> {
       SELECT
         v.cedula, c.nombre, c.telefono, v.fecha, v.codigo, v.producto,
         v.cantidad::float as cantidad, v.total::float as total, v.sesion,
-        pm.categoria_terapeutica, pm.tratamiento, pm.es_cronico
+        -- Columnas genéricas con alias al vocabulario que espera VentaRow.
+        -- El renombrado de los tipos de TS es un refactor aparte; lo que
+        -- importa aquí es no depender ya de las columnas legado, para que
+        -- la migración 004 pueda borrarlas.
+        pm.categoria AS categoria_terapeutica,
+        pm.afinidad  AS tratamiento,
+        pm.es_ancla  AS es_cronico
       FROM ventas v
       LEFT JOIN clientes c ON c.tenant_id = v.tenant_id AND c.cedula = v.cedula
-      -- productos_master_v3: vista de compatibilidad con los nombres de
-      -- columna de v3. Migrar a productos_master (categoria/afinidad/es_ancla)
-      -- en la Fase B del PRD v4.0.
-      LEFT JOIN productos_master_v3 pm ON pm.codigo = v.codigo
+      LEFT JOIN productos_master pm ON pm.codigo = v.codigo
       LEFT JOIN uploads u ON u.id = v.upload_id
       WHERE v.tenant_id = ${tenantId}
         AND (u.active IS NULL OR u.active = true)
@@ -195,10 +198,16 @@ export async function getProductosClasificadosDb(): Promise<ProductoClasificado[
     // Sin withTenant: productos_master es catálogo global y está exenta
     // de RLS por diseño (PRD v4.0 §7.2). No contiene PII ni precios.
     const rows = await sql`
-      SELECT codigo, nombre_normalizado as nombre, principio_activo,
-             categoria_atc, categoria_terapeutica, subcategoria,
-             tipo_tratamiento, tratamiento, es_cronico, es_receta
-      FROM productos_master_v3
+      SELECT codigo, nombre_normalizado AS nombre,
+             atributo_clave        AS principio_activo,
+             codigo_externo        AS categoria_atc,
+             categoria             AS categoria_terapeutica,
+             subcategoria,
+             tipo_afinidad         AS tipo_tratamiento,
+             afinidad              AS tratamiento,
+             es_ancla              AS es_cronico,
+             requiere_autorizacion AS es_receta
+      FROM productos_master
       WHERE classification_source IS NOT NULL
     `;
     return rows.map((r) => ({
@@ -891,11 +900,11 @@ export async function getBundlesDb(tenantId = DEFAULT_TENANT_ID): Promise<Bundle
       SELECT
         pm.codigo,
         pm.nombre_normalizado AS nombre,
-        pm.categoria_terapeutica,
-        pm.tratamiento,
+        pm.categoria AS categoria_terapeutica,
+        pm.afinidad  AS tratamiento,
         pt.precio_unidad,
         pt.precio_caja
-      FROM productos_master_v3 pm
+      FROM productos_master pm
       LEFT JOIN productos_tenant pt ON pt.codigo = pm.codigo AND pt.tenant_id = ${tenantId}
       WHERE pm.codigo = ANY(${todosCodigos})
     `);
