@@ -12,7 +12,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import twilio from "twilio";
 import { Resend } from "resend";
-import { sql, hasDatabase, DEFAULT_TENANT_ID } from "@/lib/db";
+import { sql, withTenant, hasDatabase, DEFAULT_TENANT_ID } from "@/lib/db";
 import { auth } from "@/auth";
 
 export const dynamic = "force-dynamic";
@@ -124,11 +124,11 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "id requerido" }, { status: 400 });
   }
 
-  const [action] = await sql<PreparedActionRow[]>`
+  const [action] = await withTenant(DEFAULT_TENANT_ID, (tx) => tx<PreparedActionRow[]>`
     SELECT id, tenant_id, category, title, recipients, suggested_message, channel, status
     FROM prepared_actions
     WHERE id = ${id} AND tenant_id = ${DEFAULT_TENANT_ID}
-  `;
+  `);
   if (!action) {
     return NextResponse.json({ error: "Acción no encontrada" }, { status: 404 });
   }
@@ -143,11 +143,11 @@ export async function POST(request: NextRequest) {
 
   // Crear campaign
   const campaignId = `camp_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-  await sql`
+  await withTenant(DEFAULT_TENANT_ID, (tx) => tx`
     INSERT INTO campaigns (id, tenant_id, type, channel, body, status, created_at)
     VALUES (${campaignId}, ${DEFAULT_TENANT_ID}, ${action.category}, ${action.channel},
             ${messageTemplate}, 'sending', now())
-  `;
+  `);
 
   // Init clients
   let twilioClient: twilio.Twilio | null = null;
@@ -182,7 +182,7 @@ export async function POST(request: NextRequest) {
     results.push(result);
 
     const logId = `msg_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-    await sql`
+    await withTenant(DEFAULT_TENANT_ID, (tx) => tx`
       INSERT INTO message_log (
         id, tenant_id, campaign_id, cedula, nombre, campaign_type,
         channel, producto, delivered, error, sent_at
@@ -191,24 +191,24 @@ export async function POST(request: NextRequest) {
         ${action.category}, ${action.channel}, ${r.producto ?? null},
         ${result.ok}, ${result.error ?? null}, now()
       )
-    `;
+    `);
   }
 
   const sent = results.filter((r) => r.ok).length;
   const failed = results.length - sent;
 
   // Update campaign
-  await sql`
+  await withTenant(DEFAULT_TENANT_ID, (tx) => tx`
     UPDATE campaigns SET
       status = ${failed === 0 ? "sent" : "partial"},
       sent_count = ${sent},
       error_count = ${failed},
       sent_at = now()
     WHERE id = ${campaignId}
-  `;
+  `);
 
   // Mark prepared_action approved + executed
-  await sql`
+  await withTenant(DEFAULT_TENANT_ID, (tx) => tx`
     UPDATE prepared_actions SET
       status = 'executed',
       approved_by = ${actor},
@@ -216,14 +216,14 @@ export async function POST(request: NextRequest) {
       executed_at = now(),
       campaign_id = ${campaignId}
     WHERE id = ${id}
-  `;
+  `);
 
   // Audit
-  await sql`
+  await withTenant(DEFAULT_TENANT_ID, (tx) => tx`
     INSERT INTO audit_log (tenant_id, actor, action, entity_type, entity_id, payload)
     VALUES (${DEFAULT_TENANT_ID}, ${actor}, ${"action.approve"}, ${"prepared_action"}, ${id},
       ${sql.json({ campaign_id: campaignId, sent, failed, recipients: action.recipients.length })})
-  `;
+  `);
 
   return NextResponse.json({
     success: true,

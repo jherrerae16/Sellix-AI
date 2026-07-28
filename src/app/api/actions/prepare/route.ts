@@ -11,7 +11,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { GoogleGenerativeAI, type Schema, SchemaType } from "@google/generative-ai";
-import { sql, hasDatabase, DEFAULT_TENANT_ID } from "@/lib/db";
+import { sql, withTenant, hasDatabase, DEFAULT_TENANT_ID } from "@/lib/db";
 import {
   getChurnV2, getRecurrencia, getReposicionesPendientes,
 } from "@/lib/dataService";
@@ -399,17 +399,17 @@ async function persistAction(
   const expiresAt = new Date(Date.now() + ACTION_TTL_HOURS * 3600_000);
 
   // Marcar previas del mismo tipo como expiradas (solo 1 ready por tipo)
-  await sql`
+  await withTenant(tenantId, (tx) => tx`
     UPDATE prepared_actions
     SET status = 'expired'
     WHERE tenant_id = ${tenantId}
       AND status = 'ready'
       AND id LIKE ${"prep_" + def.id + "_%"}
-  `;
+  `);
 
   // sql.json envía como JSONB nativo. Cast a unknown porque sql.json
   // espera tipo más estricto — runtime acepta arrays normalmente.
-  await sql`
+  await withTenant(tenantId, (tx) => tx`
     INSERT INTO prepared_actions (
       id, tenant_id, category, priority, title, description,
       recipients, suggested_message, channel, offer,
@@ -423,7 +423,7 @@ async function persistAction(
       ${def.ingreso_estimado}, ${def.ingreso_realista},
       'ready', ${expiresAt}, now()
     )
-  `;
+  `);
 }
 
 // ── Handler ─────────────────────────────────────────────────
@@ -455,11 +455,11 @@ export async function GET(req: NextRequest) {
       stats.recipients_total += def.recipients.length;
     }
 
-    await sql`
+    await withTenant(tenantId, (tx) => tx`
       INSERT INTO audit_log (tenant_id, actor, action, entity_type, payload)
       VALUES (${tenantId}, 'system', 'actions.prepare', 'prepared_actions',
         ${sql.json(stats as never)})
-    `;
+    `);
 
     stats.duration_ms = Date.now() - start;
     return NextResponse.json({ success: true, stats });

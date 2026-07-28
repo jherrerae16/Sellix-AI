@@ -13,7 +13,7 @@
 // JSON tradicional como fallback.
 // =============================================================
 
-import { sql, DEFAULT_TENANT_ID } from "./db";
+import { sql, withTenant, DEFAULT_TENANT_ID } from "./db";
 import type {
   KPIsResumen, ClienteRecurrencia, ClienteChurnV2, ChurnResumen,
   ReposicionPendiente, VentasCruzadasV2, ProductoClasificado,
@@ -39,9 +39,12 @@ const VERSION_TTL_MS = 10_000; // re-check version a lo sumo cada 10s
 type CacheEntry<T> = { value: T; expiresAt: number; version: string };
 const cache = new Map<string, CacheEntry<unknown>>();
 
-let cachedVersion: { value: string; expiresAt: number } | null = null;
+// Versión por tenant: una sola variable global haría que el segundo
+// tenant reutilizara la versión de caché del primero.
+const cachedVersions = new Map<string, { value: string; expiresAt: number }>();
 
 async function getCacheVersion(tenantId: string = DEFAULT_TENANT_ID): Promise<string> {
+  const cachedVersion = cachedVersions.get(tenantId);
   if (cachedVersion && cachedVersion.expiresAt > Date.now()) {
     return cachedVersion.value;
   }
@@ -49,21 +52,26 @@ async function getCacheVersion(tenantId: string = DEFAULT_TENANT_ID): Promise<st
     // Filtrado por tenant: sin esto, subir datos de un negocio invalidaría
     // la caché de todos los demás, y bajo RLS la fila ni siquiera sería
     // visible al no llevar tenant_id.
-    const rows = await sql<{ created_at: Date }[]>`
+    const rows = await withTenant(tenantId, (tx) => tx<{ created_at: Date }[]>`
       SELECT created_at FROM audit_log
       WHERE action = 'cache.invalidate' AND tenant_id = ${tenantId}
       ORDER BY created_at DESC LIMIT 1
-    `;
+    `);
     const v = rows[0]?.created_at ? new Date(rows[0].created_at).toISOString() : "v0";
-    cachedVersion = { value: v, expiresAt: Date.now() + VERSION_TTL_MS };
+    cachedVersions.set(tenantId, { value: v, expiresAt: Date.now() + VERSION_TTL_MS });
     return v;
   } catch {
     return "v0";
   }
 }
 
-function cached<T>(key: string, loader: () => Promise<T>): Promise<T> {
-  return getCacheVersion().then((version) => {
+/**
+ * Cache con versión por tenant. La clave ya incluye el tenant en los
+ * llamadores (`kpis:${tenantId}`), y la versión se consulta para ese
+ * mismo tenant: sin el parámetro, un negocio serviría la versión de otro.
+ */
+function cached<T>(key: string, loader: () => Promise<T>, tenantId = DEFAULT_TENANT_ID): Promise<T> {
+  return getCacheVersion(tenantId).then((version) => {
     const hit = cache.get(key) as CacheEntry<T> | undefined;
     if (hit && hit.expiresAt > Date.now() && hit.version === version) {
       return hit.value;
@@ -84,12 +92,12 @@ export async function invalidateDataCache(
   tenantId: string = DEFAULT_TENANT_ID,
 ): Promise<void> {
   cache.clear();
-  cachedVersion = null;
+  cachedVersions.delete(tenantId);
   try {
-    await sql`
+    await withTenant(tenantId, (tx) => tx`
       INSERT INTO audit_log (tenant_id, actor, action, entity_type, payload)
       VALUES (${tenantId}, 'system', 'cache.invalidate', 'data', '{}'::jsonb)
-    `;
+    `);
   } catch {
     // si falla, al menos limpiamos local
   }
@@ -115,7 +123,7 @@ interface VentaRow {
 async function getAllVentas(tenantId: string): Promise<VentaRow[]> {
   return cached(`ventas:${tenantId}`, async () => {
     // Solo incluye ventas de uploads activos (o ventas sin upload_id, por compat)
-    const rows = await sql<VentaRow[]>`
+    const rows = await withTenant(tenantId, (tx) => tx<VentaRow[]>`
       SELECT
         v.cedula, c.nombre, c.telefono, v.fecha, v.codigo, v.producto,
         v.cantidad::float as cantidad, v.total::float as total, v.sesion,
@@ -130,9 +138,9 @@ async function getAllVentas(tenantId: string): Promise<VentaRow[]> {
       WHERE v.tenant_id = ${tenantId}
         AND (u.active IS NULL OR u.active = true)
       ORDER BY v.fecha
-    `;
+    `);
     return rows.map((r) => ({ ...r, fecha: new Date(r.fecha) }));
-  });
+  }, tenantId);
 }
 
 // ── KPIs Resumen ───────────────────────────────────────────
@@ -177,13 +185,15 @@ export async function getKPIsResumenDb(tenantId = DEFAULT_TENANT_ID): Promise<KP
       oportunidades_cruzada: cruzadas.por_producto.length,
       periodo: `${min} a ${max}`,
     };
-  });
+  }, tenantId);
 }
 
 // ── Productos clasificados ─────────────────────────────────
 
 export async function getProductosClasificadosDb(): Promise<ProductoClasificado[]> {
   return cached("productos_clasificados", async () => {
+    // Sin withTenant: productos_master es catálogo global y está exenta
+    // de RLS por diseño (PRD v4.0 §7.2). No contiene PII ni precios.
     const rows = await sql`
       SELECT codigo, nombre_normalizado as nombre, principio_activo,
              categoria_atc, categoria_terapeutica, subcategoria,
@@ -342,7 +352,7 @@ export async function getRecurrenciaDb(tenantId = DEFAULT_TENANT_ID): Promise<Cl
     }
 
     return resultado;
-  });
+  }, tenantId);
 }
 
 // ── Churn v2 ───────────────────────────────────────────────
@@ -414,7 +424,7 @@ export async function getChurnV2Db(tenantId = DEFAULT_TENANT_ID): Promise<Client
         tiene_churn_cronico: tipo_churn === "churn_cronico",
       };
     });
-  });
+  }, tenantId);
 }
 
 export async function getChurnResumenDb(tenantId = DEFAULT_TENANT_ID): Promise<ChurnResumen> {
@@ -462,7 +472,7 @@ interface ReposicionRow {
 
 export async function getReposicionesPendientesDb(tenantId = DEFAULT_TENANT_ID): Promise<ReposicionPendiente[]> {
   return cached(`reposicion:${tenantId}`, async () => {
-    const rows = await sql<ReposicionRow[]>`
+    const rows = await withTenant(tenantId, (tx) => tx<ReposicionRow[]>`
       WITH ventas_activas AS (
         SELECT v.cedula, v.codigo, v.producto, v.fecha
         FROM ventas v
@@ -523,7 +533,7 @@ export async function getReposicionesPendientesDb(tenantId = DEFAULT_TENANT_ID):
         AND EXTRACT(DAY FROM ((uc.ultima + (c.ciclo_dias || ' days')::interval) - (SELECT d FROM ref_date)))::int <= 30
       ORDER BY dias_para_reposicion ASC
       LIMIT 500
-    `;
+    `);
 
     return rows.map((r) => {
       const dias = Number(r.dias_para_reposicion);
@@ -547,7 +557,7 @@ export async function getReposicionesPendientesDb(tenantId = DEFAULT_TENANT_ID):
         intervalos_dias: r.intervalos_dias ?? [],
       };
     });
-  });
+  }, tenantId);
 }
 
 // ── Ventas cruzadas v2 ─────────────────────────────────────
@@ -674,14 +684,14 @@ export async function getVentasCruzadasV2Db(tenantId = DEFAULT_TENANT_ID): Promi
       por_categoria: buildGeneric(paresCat, conteoCat),
       por_tratamiento: buildGeneric(paresTrat, conteoTrat),
     };
-  });
+  }, tenantId);
 }
 
 // ── Ventas mensuales (gráfico de tendencia) ─────────────────
 
 export async function getVentasMensualesDb(tenantId = DEFAULT_TENANT_ID): Promise<VentaMensual[]> {
   return cached(`ventas_mensuales:${tenantId}`, async () => {
-    const rows = await sql<{ mes: string; ingresos: string; transacciones: number }[]>`
+    const rows = await withTenant(tenantId, (tx) => tx<{ mes: string; ingresos: string; transacciones: number }[]>`
       SELECT
         to_char(date_trunc('month', v.fecha), 'YYYY-MM') AS mes,
         SUM(v.total)::numeric AS ingresos,
@@ -692,13 +702,13 @@ export async function getVentasMensualesDb(tenantId = DEFAULT_TENANT_ID): Promis
         AND (u.active IS NULL OR u.active = true)
       GROUP BY date_trunc('month', v.fecha)
       ORDER BY mes
-    `;
+    `);
     return rows.map((r) => ({
       mes: r.mes,
       ingresos: Number(r.ingresos) || 0,
       transacciones: Number(r.transacciones) || 0,
     }));
-  });
+  }, tenantId);
 }
 
 // ── Top productos (gráfico barra) ──────────────────────────
@@ -706,7 +716,7 @@ export async function getVentasMensualesDb(tenantId = DEFAULT_TENANT_ID): Promis
 export async function getTopProductosDb(tenantId = DEFAULT_TENANT_ID): Promise<TopProducto[]> {
   return cached(`top_productos:${tenantId}`, async () => {
     // Excluir items de transferencia/relación que no son productos reales
-    const rows = await sql<{ codigo: string; nombre: string; unidades: string; ingresos: string }[]>`
+    const rows = await withTenant(tenantId, (tx) => tx<{ codigo: string; nombre: string; unidades: string; ingresos: string }[]>`
       SELECT
         v.codigo,
         MAX(v.producto) AS nombre,
@@ -721,14 +731,14 @@ export async function getTopProductosDb(tenantId = DEFAULT_TENANT_ID): Promise<T
       GROUP BY v.codigo
       ORDER BY ingresos DESC NULLS LAST
       LIMIT 15
-    `;
+    `);
     return rows.map((r) => ({
       codigo: r.codigo,
       nombre: r.nombre,
       unidades: Number(r.unidades) || 0,
       ingresos: Number(r.ingresos) || 0,
     }));
-  });
+  }, tenantId);
 }
 
 // ── Cliente churn legacy (KPI Resumen) ─────────────────────
@@ -771,7 +781,7 @@ export async function getVentasCruzadasLegacyDb(tenantId = DEFAULT_TENANT_ID): P
 
 export async function getProductosGanchoDb(tenantId = DEFAULT_TENANT_ID): Promise<ProductoGancho[]> {
   return cached(`gancho:${tenantId}`, async () => {
-    const rows = await sql<{
+    const rows = await withTenant(tenantId, (tx) => tx<{
       codigo: string; nombre: string; veces: number;
       sesiones_arrastre: number; ticket_promedio: string;
     }[]>`
@@ -803,7 +813,7 @@ export async function getProductosGanchoDb(tenantId = DEFAULT_TENANT_ID): Promis
       FROM producto_metrics
       ORDER BY (sesiones_grandes::float / GREATEST(veces, 1)) DESC, veces DESC
       LIMIT 50
-    `;
+    `);
 
     // sesiones_arrastre = sesiones donde este producto aparece junto a >=2 más
     // ratio = % de veces que el producto "jala" sesión grande vs aparece solo
@@ -825,7 +835,7 @@ export async function getProductosGanchoDb(tenantId = DEFAULT_TENANT_ID): Promis
         ticket_promedio_en_sesion: Math.round(ticket),
       };
     });
-  });
+  }, tenantId);
 }
 
 // ── Bundles ─────────────────────────────────────────────────
@@ -837,7 +847,7 @@ export async function getBundlesDb(tenantId = DEFAULT_TENANT_ID): Promise<Bundle
     const MIN_APARICIONES = 2;
 
     // Agrupar productos por sesión, considerar solo sesiones con 3-5 productos
-    const sesionesData = await sql<{ sesion: string; productos: string[]; total: string }[]>`
+    const sesionesData = await withTenant(tenantId, (tx) => tx<{ sesion: string; productos: string[]; total: string }[]>`
       WITH ventas_activas AS (
         SELECT v.sesion, v.codigo, v.total
         FROM ventas v
@@ -852,7 +862,7 @@ export async function getBundlesDb(tenantId = DEFAULT_TENANT_ID): Promise<Bundle
       FROM ventas_activas
       GROUP BY sesion
       HAVING COUNT(DISTINCT codigo) BETWEEN 3 AND 5
-    `;
+    `);
 
     // Buscar combinaciones recurrentes. Forzar dedup + sort en JS para
     // que dos sesiones con mismos codigos siempre colisionen en la misma key
@@ -874,7 +884,7 @@ export async function getBundlesDb(tenantId = DEFAULT_TENANT_ID): Promise<Bundle
 
     // Resolver nombres + clasificación de cada producto
     const todosCodigos = Array.from(new Set(recurrentes.flatMap((c) => c.codigos)));
-    const productosInfo = await sql<{
+    const productosInfo = await withTenant(tenantId, (tx) => tx<{
       codigo: string; nombre: string; categoria_terapeutica: string | null;
       tratamiento: string | null; precio_unidad: string | null; precio_caja: string | null;
     }[]>`
@@ -888,7 +898,7 @@ export async function getBundlesDb(tenantId = DEFAULT_TENANT_ID): Promise<Bundle
       FROM productos_master_v3 pm
       LEFT JOIN productos_tenant pt ON pt.codigo = pm.codigo AND pt.tenant_id = ${tenantId}
       WHERE pm.codigo = ANY(${todosCodigos})
-    `;
+    `);
     const productoMap = new Map(productosInfo.map((p) => [p.codigo, p]));
 
     return recurrentes
@@ -920,5 +930,5 @@ export async function getBundlesDb(tenantId = DEFAULT_TENANT_ID): Promise<Bundle
       })
       .sort((a, b) => b.apariciones - a.apariciones)
       .slice(0, 20);
-  });
+  }, tenantId);
 }

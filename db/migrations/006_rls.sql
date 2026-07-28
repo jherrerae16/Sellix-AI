@@ -1,23 +1,15 @@
 -- =============================================================
 -- Sellix AI — Migración 006: Row Level Security (PRD v4.0, Fase A′)
 --
--- ⚠️  NO APLICAR TODAVÍA. Extensión .pending a propósito.
+-- ESTADO: las queries de la aplicación ya declaran su tenant vía
+-- `withTenant` / `withBypassRls` (src/lib/db.ts), así que esta migración
+-- puede aplicarse sin dejar la aplicación sin datos.
 --
--- PRECONDICIÓN BLOQUEANTE: 45 queries en 8 archivos ejecutan `sql` de
--- forma directa, sin declarar el tenant de la conexión. En cuanto RLS
--- se active, todas devolverán cero filas y la aplicación quedará vacía.
+-- ⚠️  APLICARLA NO BASTA PARA QUE EL AISLAMIENTO SEA REAL. Ver abajo:
+-- mientras DATABASE_URL apunte a un rol con rolbypassrls, las políticas
+-- existen pero no se evalúan. El interruptor final es cambiar ese rol.
 --
--- Antes de habilitar esta migración hay que envolverlas en `withTenant`
--- (o `withBypassRls` en los procesos de fondo). Archivos afectados:
---   src/lib/dataServiceDb.ts
---   src/app/api/upload/route.ts
---   src/app/api/actions/{prepare,prepared,approve}/route.ts
---   src/app/api/inbox/insights/route.ts
---   src/app/api/products/search/route.ts
---   src/app/api/classification/process/route.ts  (usa withBypassRls: es cross-tenant)
---
--- Verificación previa sugerida: aplicar en una rama de Neon, correr la
--- app apuntando ahí y comprobar que los dashboards siguen con datos.
+-- Verificación reproducible del aislamiento:  node scripts/test-rls.mjs
 --
 -- RLS es la defensa primaria, no la sesión (contexto arquitectónico §4).
 -- El código de aplicación puede tener bugs; la base de datos debe negar

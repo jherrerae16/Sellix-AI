@@ -6,7 +6,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { GoogleGenerativeAI } from "@google/generative-ai";
-import { sql, hasDatabase, DEFAULT_TENANT_ID } from "@/lib/db";
+import { sql, withTenant, hasDatabase, DEFAULT_TENANT_ID } from "@/lib/db";
 import type { ProductPrice } from "@/lib/types";
 
 interface CatalogEntry {
@@ -95,7 +95,7 @@ export async function GET(request: NextRequest) {
 
     // ILIKE pattern por palabra: todos los términos deben aparecer en el nombre.
     const ilikeConditions = words.map((w) => `pt.nombre ILIKE '%' || ${`'${w.replace(/'/g, "''")}'`} || '%'`).join(" AND ");
-    const rawRows = await sql<{
+    const rawRows = await withTenant(DEFAULT_TENANT_ID, (tx) => tx<{
       codigo: string; nombre: string;
       precio_unidad: string | null; precio_caja: string | null;
       transacciones: number;
@@ -114,10 +114,10 @@ export async function GET(request: NextRequest) {
         ), 0) AS transacciones
       FROM productos_tenant pt
       WHERE pt.tenant_id = ${DEFAULT_TENANT_ID}
-        AND ${sql.unsafe(ilikeConditions)}
+        AND ${tx.unsafe(ilikeConditions)}
       ORDER BY transacciones DESC
       LIMIT ${limit * 3}
-    `;
+    `);
 
     const matches: CatalogEntry[] = rawRows.map((r) => ({
       codigo: r.codigo,

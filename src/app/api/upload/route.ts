@@ -11,7 +11,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import * as XLSX from "xlsx";
 import { revalidatePath } from "next/cache";
-import { sql, hasDatabase, DEFAULT_TENANT_ID } from "@/lib/db";
+import { sql, withTenant, hasDatabase, DEFAULT_TENANT_ID } from "@/lib/db";
 import { invalidateDataCache } from "@/lib/dataService";
 
 export const dynamic = "force-dynamic";
@@ -114,8 +114,13 @@ async function processWorkbookToDb(
 
   const uploadId = `upload_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 
+  // Toda la persistencia del upload va en una transacción con el tenant
+  // declarado (RLS, migración 006). Como efecto adicional se vuelve
+  // atómica: antes, un fallo a mitad de los lotes dejaba el upload
+  // registrado con solo parte de sus ventas cargadas.
+  return withTenant(tenantId, async (tx) => {
   // Insert upload row
-  await sql`
+  await tx`
     INSERT INTO uploads (id, tenant_id, filename, file_type, row_count, active, uploaded_by, processed_at)
     VALUES (${uploadId}, ${tenantId}, ${originalName}, ${"ventas"}, ${rows.length}, true, ${uploadedBy ?? null}, now())
   `;
@@ -180,8 +185,8 @@ async function processWorkbookToDb(
   const clientesArr = Array.from(clientesMap.values());
   const CB = 500;
   for (let i = 0; i < clientesArr.length; i += CB) {
-    await sql`
-      INSERT INTO clientes ${sql(clientesArr.slice(i, i + CB))}
+    await tx`
+      INSERT INTO clientes ${tx(clientesArr.slice(i, i + CB))}
       ON CONFLICT (tenant_id, cedula) DO UPDATE SET
         nombre = COALESCE(EXCLUDED.nombre, clientes.nombre),
         telefono = COALESCE(EXCLUDED.telefono, clientes.telefono),
@@ -194,14 +199,14 @@ async function processWorkbookToDb(
   // Insert ventas
   const VB = 1000;
   for (let i = 0; i < ventasRows.length; i += VB) {
-    await sql`INSERT INTO ventas ${sql(ventasRows.slice(i, i + VB))}`;
+    await tx`INSERT INTO ventas ${tx(ventasRows.slice(i, i + VB))}`;
   }
 
   // Encolar productos nuevos (no clasificados) para Gemini async
   let newProductsQueued = 0;
   if (productosObservados.size) {
     const codigos = Array.from(productosObservados.keys());
-    const existentes = await sql<{ codigo: string }[]>`
+    const existentes = await tx<{ codigo: string }[]>`
       SELECT codigo FROM productos_master WHERE codigo = ANY(${codigos})
     `;
     const existentesSet = new Set(existentes.map((r) => r.codigo));
@@ -218,14 +223,14 @@ async function processWorkbookToDb(
       }));
       const MB = 500;
       for (let i = 0; i < masterRows.length; i += MB) {
-        await sql`
-          INSERT INTO productos_master ${sql(masterRows.slice(i, i + MB))}
+        await tx`
+          INSERT INTO productos_master ${tx(masterRows.slice(i, i + MB))}
           ON CONFLICT (codigo) DO NOTHING
         `;
       }
 
       for (let i = 0; i < nuevos.length; i += MB) {
-        await sql`INSERT INTO classification_queue ${sql(nuevos.slice(i, i + MB))}`;
+        await tx`INSERT INTO classification_queue ${tx(nuevos.slice(i, i + MB))}`;
       }
       newProductsQueued = nuevos.length;
     }
@@ -236,8 +241,8 @@ async function processWorkbookToDb(
     tenant_id: tenantId, codigo, nombre,
   }));
   for (let i = 0; i < tenantProds.length; i += CB) {
-    await sql`
-      INSERT INTO productos_tenant ${sql(tenantProds.slice(i, i + CB))}
+    await tx`
+      INSERT INTO productos_tenant ${tx(tenantProds.slice(i, i + CB))}
       ON CONFLICT (tenant_id, codigo) DO UPDATE SET
         nombre = EXCLUDED.nombre,
         updated_at = now()
@@ -245,10 +250,10 @@ async function processWorkbookToDb(
   }
 
   // Audit log
-  await sql`
+  await tx`
     INSERT INTO audit_log (tenant_id, actor, action, entity_type, entity_id, payload)
     VALUES (${tenantId}, ${uploadedBy ?? "unknown"}, ${"upload.create"}, ${"upload"}, ${uploadId},
-      ${sql.json({ filename: originalName, rows: rows.length, ventas: ventasRows.length, clientes: clientesArr.length, new_products: newProductsQueued })})
+      ${tx.json({ filename: originalName, rows: rows.length, ventas: ventasRows.length, clientes: clientesArr.length, new_products: newProductsQueued })})
   `;
 
   return {
@@ -257,6 +262,7 @@ async function processWorkbookToDb(
     customersFound: clientesArr.length,
     newProductsQueued,
   };
+  });
 }
 
 // ── GET: list uploads ─────────────────────────────────────────
@@ -272,7 +278,7 @@ export async function GET() {
   }
 
   const tenantId = DEFAULT_TENANT_ID;
-  const uploads = await sql<{
+  const uploads = await withTenant(tenantId, (tx) => tx<{
     id: string; filename: string; row_count: number; active: boolean;
     uploaded_at: Date; file_type: string;
   }[]>`
@@ -280,22 +286,22 @@ export async function GET() {
     FROM uploads
     WHERE tenant_id = ${tenantId}
     ORDER BY uploaded_at DESC
-  `;
+  `);
 
-  const [{ count: ventasCount }] = await sql<{ count: number }[]>`
+  const [{ count: ventasCount }] = await withTenant(tenantId, (tx) => tx<{ count: number }[]>`
     SELECT COUNT(*)::int as count FROM ventas v
     LEFT JOIN uploads u ON u.id = v.upload_id
     WHERE v.tenant_id = ${tenantId} AND (u.active IS NULL OR u.active = true)
-  `;
-  const [{ count: clientesCount }] = await sql<{ count: number }[]>`
+  `);
+  const [{ count: clientesCount }] = await withTenant(tenantId, (tx) => tx<{ count: number }[]>`
     SELECT COUNT(*)::int as count FROM clientes WHERE tenant_id = ${tenantId}
-  `;
+  `);
   const [{ count: productosCount }] = await sql<{ count: number }[]>`
     SELECT COUNT(*)::int as count FROM productos_master
   `;
-  const [{ count: pendingClass }] = await sql<{ count: number }[]>`
+  const [{ count: pendingClass }] = await withTenant(tenantId, (tx) => tx<{ count: number }[]>`
     SELECT COUNT(*)::int as count FROM classification_queue WHERE status = 'pending' AND tenant_id = ${tenantId}
-  `;
+  `);
 
   return NextResponse.json({
     files: uploads.map((u) => ({
@@ -357,10 +363,10 @@ export async function PUT(request: NextRequest) {
     const { id, active } = await request.json() as { id: string; active: boolean };
     if (!id) return NextResponse.json({ error: "ID requerido." }, { status: 400 });
 
-    await sql`
+    await withTenant(DEFAULT_TENANT_ID, (tx) => tx`
       UPDATE uploads SET active = ${active}
       WHERE id = ${id} AND tenant_id = ${DEFAULT_TENANT_ID}
-    `;
+    `);
 
     await invalidateDataCache();
     revalidatePath("/", "layout");
@@ -382,8 +388,8 @@ export async function DELETE(request: NextRequest) {
     if (!id) return NextResponse.json({ error: "ID requerido." }, { status: 400 });
 
     // Delete cascada: ventas asociadas a este upload
-    await sql`DELETE FROM ventas WHERE upload_id = ${id} AND tenant_id = ${DEFAULT_TENANT_ID}`;
-    await sql`DELETE FROM uploads WHERE id = ${id} AND tenant_id = ${DEFAULT_TENANT_ID}`;
+    await withTenant(DEFAULT_TENANT_ID, (tx) => tx`DELETE FROM ventas WHERE upload_id = ${id} AND tenant_id = ${DEFAULT_TENANT_ID}`);
+    await withTenant(DEFAULT_TENANT_ID, (tx) => tx`DELETE FROM uploads WHERE id = ${id} AND tenant_id = ${DEFAULT_TENANT_ID}`);
 
     await invalidateDataCache();
     revalidatePath("/", "layout");

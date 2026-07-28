@@ -13,7 +13,7 @@
 // de v3. Así el producto en producción nunca queda sin configuración.
 // =============================================================
 
-import { sql, hasDatabase, DEFAULT_TENANT_ID } from "./db";
+import { sql, withTenant, withBypassRls, hasDatabase, DEFAULT_TENANT_ID } from "./db";
 
 // ── Tipos ────────────────────────────────────────────────────
 
@@ -277,9 +277,18 @@ export async function getPack(packId: string): Promise<VerticalPack> {
   }
 }
 
-/** Resuelve el pack asignado a un tenant. */
+/**
+ * Resuelve el pack asignado a un tenant.
+ *
+ * `crossTenant` es para procesos de fondo que resuelven packs de tenants
+ * distintos al de la sesión —el worker de clasificación drena una cola
+ * global—. Sin ese permiso RLS no devolvería fila y se caería al Pack 001
+ * en silencio, clasificando productos de un pet shop con prompt
+ * farmacéutico. Nunca activarlo en código que atiende a un usuario.
+ */
 export async function getPackForTenant(
   tenantId: string = DEFAULT_TENANT_ID,
+  { crossTenant = false }: { crossTenant?: boolean } = {},
 ): Promise<VerticalPack> {
   const cached = tenantPackCache.get(tenantId);
   if (cached && cached.expiresAt > Date.now()) return getPack(cached.packId);
@@ -287,9 +296,12 @@ export async function getPackForTenant(
   if (!hasDatabase) return PACK_001_FARMACIA;
 
   try {
-    const rows = await sql<{ pack_id: string }[]>`
+    const query = (tx: typeof sql) => tx<{ pack_id: string }[]>`
       SELECT pack_id FROM tenants WHERE id = ${tenantId} LIMIT 1
     `;
+    const rows = crossTenant
+      ? await withBypassRls(query)
+      : await withTenant(tenantId, query);
     const packId = rows[0]?.pack_id ?? "001";
     tenantPackCache.set(tenantId, { packId, expiresAt: Date.now() + PACK_CACHE_TTL_MS });
     return getPack(packId);

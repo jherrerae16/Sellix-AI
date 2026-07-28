@@ -12,7 +12,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { GoogleGenerativeAI, SchemaType, type Schema } from "@google/generative-ai";
-import { sql, hasDatabase } from "@/lib/db";
+import { sql, withBypassRls, hasDatabase } from "@/lib/db";
 import { getPackForTenant, type VerticalPack } from "@/lib/packs";
 import { auth } from "@/auth";
 
@@ -211,25 +211,27 @@ async function persistClassified(
   `;
 }
 
+// Los ids provienen del batch que este mismo worker bloqueó, que puede
+// abarcar varios tenants: por eso bypass en vez de un tenant concreto.
 async function markQueueDone(ids: number[]): Promise<void> {
   if (!ids.length) return;
-  await sql`
+  await withBypassRls((tx) => tx`
     UPDATE classification_queue
     SET status = 'done', processed_at = now()
     WHERE id = ANY(${ids})
-  `;
+  `);
 }
 
 async function markQueueFailed(ids: number[], errorMsg: string): Promise<void> {
   if (!ids.length) return;
-  await sql`
+  await withBypassRls((tx) => tx`
     UPDATE classification_queue
     SET status = CASE WHEN attempts >= 2 THEN 'failed' ELSE 'pending' END,
         attempts = attempts + 1,
         error = ${errorMsg.slice(0, 500)},
         processed_at = now()
     WHERE id = ANY(${ids})
-  `;
+  `);
 }
 
 // ── Auth ─────────────────────────────────────────────────────
@@ -266,8 +268,11 @@ export async function GET(req: NextRequest) {
 
   try {
     for (let b = 0; b < MAX_BATCHES_PER_RUN; b++) {
-      // Lock + fetch de N pendientes
-      const items = await sql<QueueItem[]>`
+      // Lock + fetch de N pendientes.
+      // withBypassRls: el worker drena la cola de TODOS los tenants en un
+      // mismo batch — es cross-tenant por diseño (PRD v4.0 §7.2). El pack
+      // de cada item se resuelve más abajo a partir de su tenant_id.
+      const items = await withBypassRls((tx) => tx<QueueItem[]>`
         UPDATE classification_queue
         SET status = 'processing'
         WHERE id IN (
@@ -278,7 +283,7 @@ export async function GET(req: NextRequest) {
           FOR UPDATE SKIP LOCKED
         )
         RETURNING id, tenant_id, codigo, nombre, attempts
-      `;
+      `);
 
       if (!items.length) break;
       stats.fetched += items.length;
@@ -290,7 +295,7 @@ export async function GET(req: NextRequest) {
       // por tenant y no por producto.
       const packDeItem = new Map<number, VerticalPack>();
       for (const item of items) {
-        packDeItem.set(item.id, await getPackForTenant(item.tenant_id));
+        packDeItem.set(item.id, await getPackForTenant(item.tenant_id, { crossTenant: true }));
       }
 
       // 1. Fuzzy match local

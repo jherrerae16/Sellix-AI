@@ -15,7 +15,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { GoogleGenerativeAI, type Schema, SchemaType } from "@google/generative-ai";
-import { sql, hasDatabase, DEFAULT_TENANT_ID } from "@/lib/db";
+import { sql, withTenant, hasDatabase, DEFAULT_TENANT_ID } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
@@ -96,7 +96,7 @@ interface HistoricalPurchase {
 }
 
 async function getCustomerHistory(cedula: string): Promise<HistoricalPurchase[]> {
-  const rows = await sql<HistoricalPurchase[]>`
+  const rows = await withTenant(DEFAULT_TENANT_ID, (tx) => tx<HistoricalPurchase[]>`
     SELECT
       v.codigo,
       MAX(v.producto) as producto,
@@ -114,7 +114,7 @@ async function getCustomerHistory(cedula: string): Promise<HistoricalPurchase[]>
     GROUP BY v.codigo
     ORDER BY veces DESC, MAX(v.fecha) DESC
     LIMIT 10
-  `;
+  `);
   return rows;
 }
 
@@ -123,7 +123,7 @@ async function getCustomerHistory(cedula: string): Promise<HistoricalPurchase[]>
 async function getCrossSellCandidates(productosComprados: string[]): Promise<string[]> {
   if (!productosComprados.length) return [];
   // Top productos co-comprados con los del historial
-  const rows = await sql<{ producto: string }[]>`
+  const rows = await withTenant(DEFAULT_TENANT_ID, (tx) => tx<{ producto: string }[]>`
     WITH user_sesiones AS (
       SELECT DISTINCT v.sesion
       FROM ventas v
@@ -141,7 +141,7 @@ async function getCrossSellCandidates(productosComprados: string[]): Promise<str
     GROUP BY v.producto
     ORDER BY veces DESC
     LIMIT 5
-  `;
+  `);
   return rows.map((r) => r.producto);
 }
 
@@ -156,7 +156,7 @@ interface PerfilUpdate {
 }
 
 async function upsertPerfil(cedula: string, perfil: PerfilUpdate): Promise<void> {
-  await sql`
+  await withTenant(DEFAULT_TENANT_ID, (tx) => tx`
     INSERT INTO perfil_cliente_dinamico (
       tenant_id, cedula, price_sensitivity, intent_score,
       rechaza_cross_sell, responde_urgencia,
@@ -181,7 +181,7 @@ async function upsertPerfil(cedula: string, perfil: PerfilUpdate): Promise<void>
       num_conversaciones = perfil_cliente_dinamico.num_conversaciones + 1,
       insights = EXCLUDED.insights,
       updated_at = now()
-  `;
+  `);
 }
 
 // ── Handler ─────────────────────────────────────────────────

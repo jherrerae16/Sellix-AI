@@ -3,7 +3,7 @@
 // =============================================================
 
 import { NextResponse } from "next/server";
-import { sql, hasDatabase, DEFAULT_TENANT_ID } from "@/lib/db";
+import { sql, withTenant, hasDatabase, DEFAULT_TENANT_ID } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
 
@@ -29,7 +29,7 @@ export async function GET() {
     return NextResponse.json({ actions: [] });
   }
 
-  const rows = await sql<PreparedActionRow[]>`
+  const rows = await withTenant(DEFAULT_TENANT_ID, (tx) => tx<PreparedActionRow[]>`
     SELECT id, category, priority, title, description, recipients,
            suggested_message, channel, offer,
            ingreso_estimado, ingreso_realista, status,
@@ -46,7 +46,7 @@ export async function GET() {
         ELSE 3
       END,
       computed_at DESC
-  `;
+  `);
 
   return NextResponse.json({
     actions: rows.map((r) => ({

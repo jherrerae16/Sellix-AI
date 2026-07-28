@@ -17,7 +17,7 @@
 
 import Credentials from "next-auth/providers/credentials";
 import bcrypt from "bcryptjs";
-import { sql, hasDatabase, DEFAULT_TENANT_ID } from "@/lib/db";
+import { withTenant, withBypassRls, hasDatabase, DEFAULT_TENANT_ID } from "@/lib/db";
 import { isRol, type Rol } from "@/lib/authConfig";
 
 interface UserRow {
@@ -76,12 +76,15 @@ export const credentialsProvider = Credentials({
     }
 
     try {
-      const rows = await sql<UserRow[]>`
+      // withBypassRls: el login es previo a conocer el tenant — es
+      // justamente la query que lo determina. Sin bypass, RLS no
+      // devolvería ninguna fila y nadie podría autenticarse.
+      const rows = await withBypassRls((tx) => tx<UserRow[]>`
         SELECT id, tenant_id, username, password_hash, nombre, rol
         FROM users
         WHERE lower(username) = lower(${username}) AND activo = true
         LIMIT 1
-      `;
+      `);
       const user = rows[0];
 
       // Sin usuario en base: puede ser un despliegue donde el seed aún
@@ -92,7 +95,9 @@ export const credentialsProvider = Credentials({
       if (!ok) return null;
 
       // No bloquea el login si falla: es telemetría, no autenticación.
-      sql`UPDATE users SET last_login_at = now() WHERE id = ${user.id}`.catch(() => {});
+      withTenant(user.tenant_id, (tx) =>
+        tx`UPDATE users SET last_login_at = now() WHERE id = ${user.id}`,
+      ).catch(() => {});
 
       return {
         id: user.id,

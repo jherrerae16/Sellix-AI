@@ -19,9 +19,46 @@ requieren verificación manual antes de habilitarse (renombrar a `.sql`).
 | `001_initial_schema.sql` | ✅ aplicada | Esquema base multi-tenant, 16 tablas |
 | `002_generic_ontology.sql` | ✅ aplicada | Ontología genérica (expand), packs, vista de compatibilidad |
 | `003_seed_packs.sql` | ✅ aplicada | Packs 000/001/002 |
-| `005_users.sql` | ⏳ por aplicar | Tabla `users` con roles |
+| `005_users.sql` | ✅ aplicada | Tabla `users` con roles |
+| `006_rls.sql` | ✅ aplicada | Row Level Security — **requiere el paso de rol, ver abajo** |
 | `004_drop_legacy_ontology.sql.pending` | 🔒 bloqueada | Contract: borra columnas farmacéuticas |
-| `006_rls.sql.pending` | 🔒 bloqueada | Row Level Security |
+
+## ⚠️ RLS aplicado pero todavía NO efectivo
+
+Las 17 políticas existen y las queries de la aplicación ya declaran su
+tenant. **Falta un paso, y sin él el aislamiento no se evalúa:**
+
+`DATABASE_URL` apunta hoy a `neondb_owner`, que tiene `rolbypassrls = true`.
+Postgres omite RLS para ese rol, así que las políticas están inertes.
+
+Para activarlas de verdad, en la consola SQL de Neon:
+
+```sql
+CREATE ROLE sellix_app LOGIN PASSWORD '<contraseña fuerte>';
+GRANT USAGE ON SCHEMA public TO sellix_app;
+GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO sellix_app;
+GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO sellix_app;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public
+  GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO sellix_app;
+```
+
+Después, en Vercel, cambiar `DATABASE_URL` para que use `sellix_app` en
+lugar de `neondb_owner` y redesplegar. Las migraciones se siguen
+ejecutando con el rol propietario (el `DATABASE_URL` de `.env.local`).
+
+Comprobar que quedó bien:
+
+```sql
+SELECT rolname, rolsuper, rolbypassrls FROM pg_roles WHERE rolname = current_user;
+```
+
+Ambos deben ser `f`.
+
+**Verificación del aislamiento:** `node scripts/test-rls.mjs` levanta un
+Postgres desechable, aplica toda la cadena de migraciones y ejecuta las
+queries reales de la aplicación con un rol restringido — comprueba que
+sin tenant no se ve nada, que cada tenant ve solo lo suyo, que el worker
+de fondo puede operar cross-tenant y que una escritura cruzada se rechaza.
 
 ## Migraciones bloqueadas: qué falta para habilitarlas
 
@@ -44,54 +81,25 @@ Precondiciones:
    cruzada y recompras que antes de la migración 002.
 4. Branch/backup de Neon tomado. **Este paso sí destruye datos.**
 
-### 006 — Row Level Security
+## Cómo declarar el tenant en una query
 
-**Bloqueante #1: el rol de conexión.**
+Todas las queries de la aplicación pasan por uno de estos dos helpers de
+`src/lib/db.ts`. No se escriben queries con `sql` directo sobre tablas con
+`tenant_id`.
 
-La app se conecta hoy como `neondb_owner`, que tiene `rolbypassrls = true`.
-Postgres ignora RLS para esos roles, y `FORCE ROW LEVEL SECURITY` no lo
-cambia. Aplicar la migración con este rol daría un aislamiento aparente
-pero inexistente — peor que no tenerlo, porque invita a confiar.
+```ts
+// Petición de un usuario: el tenant sale de la sesión (nunca del request)
+const ctx = await requireTenant();
+if (!ctx.ok) return ctx.response;
+const filas = await withTenant(ctx.tenantId, (tx) => tx`SELECT * FROM ventas`);
 
-Verificar:
-
-```sql
-SELECT rolname, rolsuper, rolbypassrls FROM pg_roles WHERE rolname = current_user;
+// Proceso de fondo que abarca varios tenants (worker, ETL, login)
+const items = await withBypassRls((tx) => tx`SELECT * FROM classification_queue ...`);
 ```
 
-Ambos deben ser `f`. Si no, crear un rol dedicado y apuntar ahí
-`DATABASE_URL` (las migraciones siguen corriendo con el rol propietario):
+`set_config(..., true)` hace el ajuste local a la transacción: en
+serverless el pool reutiliza conexiones entre peticiones y un ajuste de
+sesión se filtraría de un tenant al siguiente.
 
-```sql
-CREATE ROLE sellix_app LOGIN PASSWORD '...';
-GRANT USAGE ON SCHEMA public TO sellix_app;
-GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO sellix_app;
-GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO sellix_app;
-ALTER DEFAULT PRIVILEGES IN SCHEMA public
-  GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO sellix_app;
-```
-
-**Bloqueante #2: 45 queries sin contexto de tenant.**
-
-Ejecutan `sql` directo, sin declarar el tenant de la conexión. Con RLS
-activo devolverían cero filas y la aplicación quedaría vacía. Hay que
-envolverlas en `withTenant()` (o `withBypassRls()` en procesos de fondo,
-que son cross-tenant por diseño):
-
-| Archivo | Nota |
-|---|---|
-| `src/lib/dataServiceDb.ts` | El grueso de las queries analíticas |
-| `src/app/api/upload/route.ts` | |
-| `src/app/api/actions/{prepare,prepared,approve}/route.ts` | |
-| `src/app/api/inbox/insights/route.ts` | |
-| `src/app/api/products/search/route.ts` | |
-| `src/app/api/classification/process/route.ts` | `withBypassRls` — worker cross-tenant |
-
-**Verificación recomendada:** aplicar en una rama de Neon, apuntar la app
-ahí y comprobar que los dashboards siguen mostrando datos antes de tocar
-producción.
-
-El aislamiento ya está validado end-to-end en un Postgres desechable con
-un rol sin privilegios: sin tenant declarado no se ve nada, cada tenant ve
-solo lo suyo, el bypass funciona para workers, y un INSERT cruzado es
-rechazado por la base de datos.
+Excepciones legítimas a `withTenant`, todas sobre tablas exentas:
+`productos_master`, `productos_master_v3`, `vertical_packs`.
