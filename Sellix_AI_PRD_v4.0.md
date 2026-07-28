@@ -578,35 +578,58 @@ Meta: de registro a primer insight en **menos de 30 minutos**, sin intervención
 
 El producto está en producción. La migración es incremental y no debe romper al cliente actual.
 
-### Fase A — Cimientos ✅ **MAYORMENTE COMPLETADA**
+### Fase A — Cimientos ✅ **COMPLETADA** (falta un paso de configuración)
 
 | # | Tarea | Estado |
 |---|---|---|
-| 1 | Modelar esquema Postgres con `tenant_id` | ✅ Hecho — `001_initial_schema.sql`, 16 tablas |
-| 2 | Migrar los datasets JSON a tablas manteniendo la API de `dataService` | ✅ Hecho — `dataServiceDb.ts` |
-| 3 | Migrar el CRM de Redis a Postgres | ✅ Hecho — `conversations`, `chat_messages`, `orders` |
-| 4 | Crear el tenant `superofertas` y cargar sus datos | ✅ Hecho — `seed-from-existing.mjs` |
-| 5 | **RLS por `tenant_id` en todas las tablas** (excepto `productos_master`) | ❌ **Pendiente** |
-| 6 | **`tenant_id` y `rol` en el claim JWT**, eliminar dependencia de `DEFAULT_TENANT_ID` | ❌ **Pendiente** |
-| 7 | **Auditoría de queries**: verificar que ninguna omita `tenant_id` antes de activar RLS | ❌ **Pendiente** |
+| 1 | Modelar esquema Postgres con `tenant_id` | ✅ `001_initial_schema.sql`, 16 tablas |
+| 2 | Migrar los datasets JSON a tablas manteniendo la API de `dataService` | ✅ `dataServiceDb.ts` |
+| 3 | Migrar el CRM de Redis a Postgres | ✅ `conversations`, `chat_messages`, `orders` |
+| 4 | Crear el tenant `superofertas` y cargar sus datos | ✅ `seed-from-existing.mjs` |
+| 5 | **RLS por `tenant_id`** (excepto tablas globales) | ✅ `006_rls.sql`, 17 políticas |
+| 6 | **`tenant_id` y `rol` en el claim JWT** | ✅ Tabla `users` + `005_users.sql` |
+| 7 | **Auditoría de queries** antes de activar RLS | ✅ 45 queries envueltas en `withTenant`/`withBypassRls` |
+| 8 | **Rol Postgres sin `rolbypassrls`** | ⏳ **Pendiente — ver abajo** |
 
 **Criterio de salida:** ningún tenant puede leer datos de otro aunque una query omita el filtro.
+Verificado con `scripts/test-rls.mjs` (12 comprobaciones sobre un Postgres
+desechable con rol restringido), **pero todavía no efectivo en producción**:
+`DATABASE_URL` apunta a `neondb_owner`, que tiene `rolbypassrls = true`, y
+Postgres omite RLS para ese rol. Las políticas están aplicadas pero inertes
+hasta crear un rol dedicado y apuntar ahí la variable en Vercel. El SQL está
+en `db/migrations/README.md`.
 
-### Fase B — Ontología 🔜 **EN CURSO**
+**Corregido de paso** (bugs que la migración dejó a la vista):
+- El rol de usuario vivía en `localStorage` y `/api/campaigns/attribution` no
+  validaba sesión: escalada de privilegios al panel de comisiones cross-tenant.
+- La versión de caché era una variable global: el segundo tenant habría
+  reutilizado la del primero.
+- El upload persistía en lotes sueltos; ahora es atómico.
 
-| # | Tarea |
-|---|---|
-| 8 | Migración `002`: renombrar `categoria_terapeutica`→`categoria`, `tratamiento`→`afinidad`, `tipo_tratamiento`→`tipo_afinidad`, `es_cronico`→`es_ancla`, `es_receta`→`requiere_autorizacion`, `principio_activo`→`atributo_clave`, `categoria_atc`→`codigo_externo` |
-| 9 | Vista `productos_master_v3` con los nombres antiguos para compatibilidad — el código existente no se toca en este paso |
-| 10 | Tabla `vertical_packs` + columna `tenants.pack_id` |
-| 11 | Seed del **Pack 001 – Farmacia** reproduciendo exactamente el comportamiento actual, y del **Pack 000 – Genérico** |
-| 12 | `src/lib/packs.ts`: loader con caché que resuelve el pack del tenant |
-| 13 | Migrar los 23 archivos a los nombres nuevos, uno por uno, con la vista como red de seguridad |
-| 14 | Eliminar la vista de compatibilidad |
+### Fase B — Ontología ✅ **COMPLETADA** (falta el borrado final)
 
-**Criterio de salida:** el tenant de farmacia produce resultados idénticos con la ontología genérica cargada desde el pack.
+| # | Tarea | Estado |
+|---|---|---|
+| 9 | Migración `002` con la ontología genérica | ✅ Expand-contract, cero downtime |
+| 10 | Vista `productos_master_v3` + trigger de sincronización bidireccional | ✅ Permitió desplegar sin tocar el código de golpe |
+| 11 | Tabla `vertical_packs` + `tenants.pack_id` | ✅ `002_generic_ontology.sql` |
+| 12 | Seed de los Packs 000 (genérico), 001 (farmacia) y 002 (pet shop) | ✅ `003_seed_packs.sql` |
+| 13 | `src/lib/packs.ts`: loader con caché y calibración de conversión | ✅ 33 tests |
+| 14 | Migrar el SQL de la aplicación a los nombres genéricos | ✅ Eran 4 queries, no 23 archivos |
+| 15 | Eliminar columnas legado y vista de compatibilidad | ⏳ `004` lista, esperando 24h de estabilidad |
 
-> *Este es el punto de validación crítico de toda la refactorización: si el Pack 001 no reproduce el comportamiento actual exactamente, la abstracción es incorrecta.*
+**Criterio de salida — cumplido.** Paridad exacta contra los datos de
+producción: 12.175 ventas, 3.005 productos clasificados, 3.160 marcados como
+ancla, 1.093 categorías y 1.623 afinidades, idénticos leyendo por la vista v3
+y por las columnas genéricas. El Pack 001 reproduce las constantes de v3 valor
+por valor, con tests que fallan si alguna diverge.
+
+> *Este era el punto de validación crítico de toda la refactorización.*
+
+**Pendiente menor:** los *tipos de TypeScript* conservan el vocabulario
+farmacéutico (`tratamientos_abandonados`, `tipo_churn: "churn_cronico"`).
+Renombrarlos propaga a tablas y páginas de la interfaz; es un refactor aparte
+que no bloquea nada, porque la capa de datos ya es genérica.
 
 ### Fase C — Calibración
 
