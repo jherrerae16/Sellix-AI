@@ -1,18 +1,29 @@
 "use client";
 
-import { User, Shield, ShoppingBag, Building2, LogOut } from "lucide-react";
+import { User, Shield, ShoppingBag, Building2, LogOut, Crown, BarChart3 } from "lucide-react";
+import { signOut } from "next-auth/react";
 import { useRole, type Role } from "@/lib/RoleContext";
 
 const roleConfig: Record<Role, { label: string; icon: React.ReactNode; color: string }> = {
+  owner: {
+    label: "Propietario",
+    icon: <Crown className="w-3.5 h-3.5" />,
+    color: "bg-amber-50 text-amber-600",
+  },
   admin: {
     label: "Administrador",
     icon: <Shield className="w-3.5 h-3.5" />,
     color: "bg-indigo-50 text-indigo-600",
   },
-  cajero: {
-    label: "Cajero",
+  agente: {
+    label: "Agente",
     icon: <ShoppingBag className="w-3.5 h-3.5" />,
     color: "bg-emerald-50 text-emerald-600",
+  },
+  analista: {
+    label: "Analista",
+    icon: <BarChart3 className="w-3.5 h-3.5" />,
+    color: "bg-sky-50 text-sky-600",
   },
   nextaitech: {
     label: "Next AI Tech",
@@ -22,7 +33,7 @@ const roleConfig: Record<Role, { label: string; icon: React.ReactNode; color: st
 };
 
 export function TopBar() {
-  const { role, logout } = useRole();
+  const { role } = useRole();
 
   if (!role) return null;
   const config = roleConfig[role];
@@ -46,9 +57,9 @@ export function TopBar() {
 
         {/* Logout */}
         <button
-          onClick={logout}
+          onClick={() => signOut({ callbackUrl: "/welcome" })}
           className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-          title="Cambiar de perfil"
+          title="Cerrar sesión"
         >
           <LogOut className="w-3.5 h-3.5" />
           Salir

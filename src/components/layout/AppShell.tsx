@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Sparkles } from "lucide-react";
 import { useRole } from "@/lib/RoleContext";
 import { Sidebar } from "./Sidebar";
@@ -8,17 +8,11 @@ import { TopBar } from "./TopBar";
 import { CopilotChat } from "@/components/copilot/CopilotChat";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
-  const { role, setRole } = useRole();
+  // El rol llega del servidor vía RoleProvider; ya no se elige en el
+  // cliente. Sin sesión no hay rol y el middleware ya habrá redirigido.
+  const { role } = useRole();
   const [copilotOpen, setCopilotOpen] = useState(false);
 
-  // If authenticated but no role selected, default to admin
-  useEffect(() => {
-    if (!role) {
-      setRole("admin");
-    }
-  }, [role, setRole]);
-
-  // Show nothing while role is being set
   if (!role) return null;
 
   return (

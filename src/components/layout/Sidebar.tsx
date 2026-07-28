@@ -40,7 +40,7 @@ export function Sidebar() {
   const pathname = usePathname();
   const { role } = useRole();
 
-  const navItems = role === "cajero"
+  const navItems = role === "agente"
     ? cajeroNav
     : role === "nextaitech"
     ? nextaitechNav

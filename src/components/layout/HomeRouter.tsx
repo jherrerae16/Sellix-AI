@@ -22,7 +22,8 @@ export function HomeRouter({ adminView, ventasCruzadas, reposiciones, churn }: H
     if (role === "nextaitech") router.replace("/comisiones");
   }, [role, router]);
 
-  if (role === "cajero") {
+  // `agente` sustituye al antiguo `cajero` (PRD v4.0 §5, vocabulario canónico).
+  if (role === "agente") {
     return <CajeroHome ventasCruzadas={ventasCruzadas} reposiciones={reposiciones} churn={churn} />;
   }
 

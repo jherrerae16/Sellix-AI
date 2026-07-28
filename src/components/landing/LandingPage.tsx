@@ -348,8 +348,10 @@ function Footer() {
 export function LandingPage() {
   const [showProfiles, setShowProfiles] = useState(false);
 
-  const handleSelectProfile = (profile: "admin" | "cajero" | "nextaitech") => {
-    localStorage.setItem("sellix-role", profile);
+  // El perfil ya no lo elige el visitante: el rol viene del usuario en
+  // base de datos y viaja firmado en el JWT (PRD v4.0 §4). Los botones
+  // de perfil son informativos y todos llevan al mismo login.
+  const handleSelectProfile = (_profile: "admin" | "cajero" | "nextaitech") => {
     window.location.href = "/auth/signin";
   };
 

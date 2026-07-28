@@ -1,12 +1,21 @@
 // =============================================================
-// Sellix AI — Instancia NextAuth.js v5
+// Sellix AI — Instancia NextAuth.js v5 (Edge-safe)
+//
+// Este módulo lo importa el middleware, que corre en Edge Runtime.
+// Por eso NO incluye el provider de credenciales: ese consulta
+// Postgres y hace bcrypt, cosas que Edge no soporta.
+//
+// El middleware solo necesita leer y verificar el JWT, para lo que
+// basta con la config compartida. El login real ocurre en
+// src/app/api/auth/[...nextauth]/route.ts, que corre en Node y sí
+// carga el provider (ver src/lib/authNode.ts).
 // =============================================================
 
 import NextAuth from "next-auth";
 import { NextResponse } from "next/server";
 import { authConfig } from "@/lib/authConfig";
 
-export const { handlers, auth, signIn, signOut } = NextAuth({
+export const { auth, signIn, signOut } = NextAuth({
   ...authConfig,
   trustHost: true,
   callbacks: {

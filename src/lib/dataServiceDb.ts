@@ -41,14 +41,17 @@ const cache = new Map<string, CacheEntry<unknown>>();
 
 let cachedVersion: { value: string; expiresAt: number } | null = null;
 
-async function getCacheVersion(): Promise<string> {
+async function getCacheVersion(tenantId: string = DEFAULT_TENANT_ID): Promise<string> {
   if (cachedVersion && cachedVersion.expiresAt > Date.now()) {
     return cachedVersion.value;
   }
   try {
+    // Filtrado por tenant: sin esto, subir datos de un negocio invalidaría
+    // la caché de todos los demás, y bajo RLS la fila ni siquiera sería
+    // visible al no llevar tenant_id.
     const rows = await sql<{ created_at: Date }[]>`
       SELECT created_at FROM audit_log
-      WHERE action = 'cache.invalidate'
+      WHERE action = 'cache.invalidate' AND tenant_id = ${tenantId}
       ORDER BY created_at DESC LIMIT 1
     `;
     const v = rows[0]?.created_at ? new Date(rows[0].created_at).toISOString() : "v0";
@@ -77,13 +80,15 @@ function cached<T>(key: string, loader: () => Promise<T>): Promise<T> {
  * lambdas (esta y otras) la verán al próximo check de versión (~10s).
  * También limpia el cache local para reflejar inmediatamente.
  */
-export async function invalidateDataCache(): Promise<void> {
+export async function invalidateDataCache(
+  tenantId: string = DEFAULT_TENANT_ID,
+): Promise<void> {
   cache.clear();
   cachedVersion = null;
   try {
     await sql`
-      INSERT INTO audit_log (actor, action, entity_type, payload)
-      VALUES ('system', 'cache.invalidate', 'data', '{}'::jsonb)
+      INSERT INTO audit_log (tenant_id, actor, action, entity_type, payload)
+      VALUES (${tenantId}, 'system', 'cache.invalidate', 'data', '{}'::jsonb)
     `;
   } catch {
     // si falla, al menos limpiamos local

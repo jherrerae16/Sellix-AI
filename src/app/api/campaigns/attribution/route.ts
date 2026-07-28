@@ -8,6 +8,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { readFile } from "fs/promises";
 import { join } from "path";
 import type { MessageLog, Attribution, CommissionSummary } from "@/lib/types";
+import { requireRole } from "@/lib/tenantContext";
 
 const MESSAGES_LOG_PATH = join(process.cwd(), "data", "campaigns", "messages.json");
 const VENTAS_PATH = join(process.cwd(), "data", "output", "churn_clientes.json");
@@ -49,6 +50,12 @@ function daysBetween(dateA: string, dateB: string): number {
 
 export async function GET(request: NextRequest) {
   try {
+    // Datos de comisiones y atribución: alcance cross-tenant, solo para
+    // Next AI Tech. Antes esta ruta no validaba nada y el control vivía
+    // en el cliente (localStorage), donde cualquiera podía falsearlo.
+    const ctx = await requireRole("nextaitech");
+    if (!ctx.ok) return ctx.response;
+
     const url = new URL(request.url);
     const windowDays = parseInt(url.searchParams.get("window") || String(ATTRIBUTION_WINDOW_DAYS));
 

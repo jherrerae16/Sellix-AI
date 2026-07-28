@@ -57,7 +57,8 @@ export function SignInForm() {
       setError("Credenciales inválidas. Verifique e intente de nuevo.");
       setLoading(false);
     } else if (result?.ok) {
-      localStorage.setItem("sellix-role", "admin");
+      // El rol viene en el JWT desde la tabla `users`; el cliente ya no
+      // lo elige ni lo guarda (PRD v4.0 §4).
       router.push(callbackUrl);
       router.refresh();
     }
