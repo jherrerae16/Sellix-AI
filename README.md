@@ -1,14 +1,24 @@
 # Sellix AI
 
+**Turns a pharmacy's sales history into decisions, and WhatsApp into a full sales channel.**
+
 Sales intelligence and WhatsApp CRM SaaS for pharmacies in Colombia, built by
 **Next AI Tech LLC**.
 
 **Live demo:** https://sellix-ai-mvp.vercel.app
 
-## What it does
+## The problem it solves
 
-Sellix AI turns pharmacy sales data into concrete commercial decisions and turns
-WhatsApp into a complete sales channel:
+An independent pharmacy already owns the data that would grow it — every sale,
+every customer, every repeat purchase — and it sits unused in a POS export.
+Meanwhile the actual conversations with customers happen on WhatsApp, in a
+personal phone, with no record, no funnel and no follow-up.
+
+Sellix AI reads the first and organizes the second, then connects them: the
+analytics tell you *who* to talk to and *why*, and the CRM is where you talk to
+them.
+
+## What it does
 
 - **Sales dashboard** — KPIs, trends, top products in real time
 - **Churn detection** — Flags customers at risk of leaving
@@ -22,6 +32,38 @@ WhatsApp into a complete sales channel:
 - **Prescription analysis** — Customer sends a photo → AI detects the medications → automatic pricing
 - **AI copilot** — Natural-language chat to query system data
 - **Next Best Action** — Prioritized actions with estimated revenue impact
+
+## The qualities that define it
+
+**It ends on an action, not on a chart.** Most analytics tools stop at the
+insight. Every module here terminates in something you can do this afternoon:
+*Next Best Action* consolidates churn risk, refill timing and cross-sell into one
+prioritized list with estimated revenue impact per item. The dashboard is the
+supporting evidence, not the product.
+
+**The channel is already installed.** In Colombia, a pharmacy's customers are on
+WhatsApp — there is no app to convince anyone to download. Twilio handles the
+webhook and the sending; the inbox turns those threads into a funnel with stages,
+and the funnel engine advances them automatically.
+
+**A photo of a prescription is a complete transaction.** The customer sends a
+picture, Gemini Vision reads the medications, the system looks them up in the
+catalog and replies with prices. What used to be a phone call and a manual
+lookup becomes one message.
+
+**It is built to be affordable to run.** Gemini's free tier for AI and vision,
+Redis for persistence, static JSON for analytical reads, Vercel for hosting.
+Serving a single independent pharmacy has to cost nearly nothing per month for
+the business model to work at all, and the stack is picked accordingly.
+
+**Roles match how a pharmacy actually operates.** The cashier does not get an
+analytics console — they get customer search, cross-sell suggestions and refill
+reminders, at the counter. The owner gets the full dashboard. Next AI Tech gets
+the commission and attribution panel. Three different products from one codebase.
+
+**Onboarding is an Excel upload.** The Python ETL ingests the POS export as it
+comes, with pandas and openpyxl. No POS integration project, no IT engagement —
+which is the difference between a pharmacy trying it and a pharmacy declining.
 
 ## Tech Stack
 
