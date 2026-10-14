@@ -69,3 +69,4 @@ coverage/
 # Configuración local de agentes
 .agents/
 AGENTS.md
+.claude/settings.local.json

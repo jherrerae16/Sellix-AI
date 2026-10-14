@@ -210,4 +210,4 @@ If a prescription photo is sent:
 ---
 
 *Next AI Tech LLC · Miami, Florida · 2026*
-*Pilot customer: Droguería Super Ofertas · Barranquilla, Colombia*
+*Pilot customer: a pharmacy in Barranquilla, Colombia*
