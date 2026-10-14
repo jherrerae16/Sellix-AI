@@ -62,8 +62,8 @@ APP_PASSWORD_HASH=<hash de bcryptjs>
 pip install -r scripts/requirements.txt
 
 # Colocar archivos Excel:
-# data/raw/Ventas_Superofertas.xlsx
-# data/raw/Remisiones_Mayo_Octubre_Superofertas.xlsx
+# data/raw/Ventas.xlsx
+# data/raw/Remisiones.xlsx
 
 # Ejecutar ETL
 python scripts/etl.py

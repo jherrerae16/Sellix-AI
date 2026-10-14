@@ -24,9 +24,9 @@ const ROOT = join(__dirname, "..");
 loadEnv({ path: join(ROOT, ".env.local") });
 loadEnv({ path: join(ROOT, ".env") });
 
-const TENANT_ID = process.env.DEFAULT_TENANT_ID ?? "superofertas";
-const TENANT_NAME = "Droguería Superofertas";
-const TENANT_SLUG = "superofertas";
+const TENANT_ID = process.env.DEFAULT_TENANT_ID ?? "demo";
+const TENANT_NAME = process.env.NEXT_PUBLIC_NOMBRE_NEGOCIO ?? "Droguería Demo";
+const TENANT_SLUG = "demo";
 
 const DATA_DIR = join(ROOT, "data", "output");
 const UPLOADS_DIR = join(ROOT, "data", "uploads");

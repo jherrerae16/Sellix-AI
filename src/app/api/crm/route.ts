@@ -9,6 +9,7 @@ import { loadConversations, saveConversations } from "@/lib/crmStore";
 import { applyFunnelRules } from "@/lib/funnelEngine";
 import twilio from "twilio";
 import type { Conversation, ChatMessage, Order, Payment } from "@/lib/types";
+import { NOMBRE_NEGOCIO } from "@/lib/negocio";
 
 export const dynamic = "force-dynamic";
 
@@ -194,7 +195,7 @@ export async function PUT(request: NextRequest) {
         conv.order.payment.paidAt = new Date().toISOString();
         conv.order.status = "pagado";
 
-        const confirmText = `✅ ${nombre}, su pago de *$${conv.order.payment.amount.toLocaleString("es-CO")}* ha sido confirmado.\n\nEstamos preparando su pedido. Le avisaremos cuando salga el envío. 🏍️\n\nDroguería Super Ofertas`;
+        const confirmText = `✅ ${nombre}, su pago de *$${conv.order.payment.amount.toLocaleString("es-CO")}* ha sido confirmado.\n\nEstamos preparando su pedido. Le avisaremos cuando salga el envío. 🏍️\n\n${NOMBRE_NEGOCIO}`;
 
         const confirmMsg: ChatMessage = {
           id: `msg_${Date.now()}_conf`,
@@ -226,7 +227,7 @@ export async function PUT(request: NextRequest) {
           conv.messages.push(deliverMsg);
 
           // Auto followup
-          const followupText = `Hola ${nombre}! 👋 Somos Droguería Super Ofertas.\n\n¿Recibió su pedido correctamente? ¿Llegó todo bien?\n\nSi necesita algo más o quiere hacer otro pedido, responda este mensaje. Estamos para servirle 💊`;
+          const followupText = `Hola ${nombre}! 👋 Somos ${NOMBRE_NEGOCIO}.\n\n¿Recibió su pedido correctamente? ¿Llegó todo bien?\n\nSi necesita algo más o quiere hacer otro pedido, responda este mensaje. Estamos para servirle 💊`;
 
           const followup: ChatMessage = {
             id: `msg_${Date.now()}_fu`,

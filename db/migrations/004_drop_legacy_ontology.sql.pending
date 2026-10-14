@@ -18,7 +18,7 @@
 --      producción, sin rollback pendiente.
 --
 --   3. Paridad verificada (PRD §11, criterio de salida de Fase B):
---      el tenant superofertas produce los mismos conteos de churn,
+--      el tenant demo produce los mismos conteos de churn,
 --      pares de venta cruzada y reposiciones que antes de la migración.
 --
 --   4. Backup/branch de Neon tomado inmediatamente antes.

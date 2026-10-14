@@ -7,6 +7,7 @@
 import { readFile, writeFile, mkdir } from "fs/promises";
 import { join } from "path";
 import type { Conversation, Order, Payment, ChatMessage, ConversationStage, ConversationStatus } from "./types";
+import { NOMBRE_NEGOCIO } from "./negocio";
 
 const CRM_DIR = join(process.cwd(), "data", "crm");
 const CONVERSATIONS_PATH = join(CRM_DIR, "conversations.json");
@@ -172,7 +173,7 @@ const CONVERSATION_TEMPLATES: ConversationTemplate[] = [
       { from: "sistema", text: "✅ Pago confirmado — $22.348", type: "text" },
       { from: "agente", text: "Pedido en camino! 🏍️", type: "text" },
       { from: "sistema", text: "📦 Pedido entregado", type: "text" },
-      { from: "sistema", text: "Hola! Somos Droguería Super Ofertas. ¿Recibió su pedido correctamente? ¿Necesita algo más?", type: "auto_followup" },
+      { from: "sistema", text: `Hola! Somos ${NOMBRE_NEGOCIO}. ¿Recibió su pedido correctamente? ¿Necesita algo más?`, type: "auto_followup" },
       { from: "cliente", text: "Sí, todo perfecto. Muchas gracias!", type: "text" },
       { from: "sistema", text: "Recuerde que puede hacer su próximo pedido por este mismo chat. ¡Estamos para servirle! 💊", type: "auto_followup" },
     ],

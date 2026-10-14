@@ -75,7 +75,7 @@
 | `calculate_gancho()` | `productos_gancho.json` | Ventas + Remisiones |
 
 ### Criterios de completitud
-- [ ] `python scripts/etl.py` ejecuta sin errores con los datos de Super Ofertas
+- [ ] `python scripts/etl.py` ejecuta sin errores con los datos de la droguería piloto
 - [ ] Reporte de calidad de datos imprime las métricas esperadas
 - [ ] Los 8 archivos JSON se generan en `public/data/`
 - [ ] Ejecución repetida produce JSON idénticos (reproducibilidad)

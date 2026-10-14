@@ -23,8 +23,8 @@ pip install -r scripts/requirements.txt
 
 ### 2. Colocar archivos Excel en data/raw/
 ```
-data/raw/Ventas_Superofertas.xlsx
-data/raw/Remisiones_Mayo_Octubre_Superofertas.xlsx
+data/raw/Ventas.xlsx
+data/raw/Remisiones.xlsx
 ```
 
 ### 3. Ejecutar ETL

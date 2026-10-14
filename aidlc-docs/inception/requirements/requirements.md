@@ -22,7 +22,7 @@
 ## 2. Contexto de Negocio
 
 - **Producto**: Sellix AI — SaaS de inteligencia comercial para el canal farmacéutico
-- **Cliente piloto**: Droguería Super Ofertas — Barranquilla, Colombia
+- **Cliente piloto**: una droguería de Barranquilla, Colombia
 - **Empresa**: Next AI Tech LLC — Miami, Florida
 - **Problema central**: Las droguerías independientes tienen datos históricos sin utilizar, lo que genera pérdida silenciosa de clientes, cero venta cruzada, reposición reactiva y desconocimiento del valor real de cada cliente
 - **Modelo de escala**: SaaS multi-tenant para droguerías independientes y cadenas en Latinoamérica
@@ -70,7 +70,7 @@
 
 ### RF-001 — Pipeline ETL (Python)
 
-- **RF-001.1**: Cargar `Ventas_Superofertas.xlsx` y `Remisiones_Mayo_Octubre_Superofertas.xlsx` desde `data/raw/`
+- **RF-001.1**: Cargar `Ventas.xlsx` y `Remisiones.xlsx` desde `data/raw/`
 - **RF-001.2**: Ejecutar `resumen_calidad_datos()` — validación de integridad antes de procesar
 - **RF-001.3**: Filtrar consumidor final (`Identificación = 222222222222`) de todos los modelos de clientes; incluir en análisis de productos
 - **RF-001.4**: Fecha de referencia fija: **2025-10-31** (última fecha del dataset)

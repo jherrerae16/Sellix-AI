@@ -154,7 +154,7 @@ main()
 ```
 
 ### Interacciones
-- **Input**: `data/raw/Ventas_Superofertas.xlsx`, `data/raw/Remisiones_Mayo_Octubre_Superofertas.xlsx`
+- **Input**: `data/raw/Ventas.xlsx`, `data/raw/Remisiones.xlsx`
 - **Output**: 8 archivos JSON en `public/data/`
 - **Dependencias**: pandas 2.x, openpyxl, datetime, json, logging, pathlib
 - **Sin conexión de red** — procesamiento 100% local

@@ -11,6 +11,7 @@
 import { GoogleGenerativeAI, type FunctionDeclaration, SchemaType } from "@google/generative-ai";
 import { readFile } from "fs/promises";
 import { join } from "path";
+import { NOMBRE_NEGOCIO } from "./negocio";
 
 const DATA_DIR = join(process.cwd(), "data", "output");
 
@@ -197,7 +198,7 @@ async function executeTool(name: string, args: Record<string, unknown>): Promise
 
 // ── System prompt ─────────────────────────────────────────────
 
-const SYSTEM_PROMPT = `Eres el asistente virtual de ventas de Droguería Super Ofertas, una farmacia en Barranquilla, Colombia.
+const SYSTEM_PROMPT = `Eres el asistente virtual de ventas de ${NOMBRE_NEGOCIO}, una farmacia en Barranquilla, Colombia.
 
 TU PERSONALIDAD:
 - Tono colombiano profesional, cálido, amable, de farmacia de confianza

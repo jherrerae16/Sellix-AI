@@ -15,7 +15,7 @@
 | **Dispositivos** | Computador de escritorio en oficina, tableta personal |
 
 ### Perfil
-Carlos fundó Droguería Super Ofertas hace 22 años. Conoce a la mayoría de sus clientes frecuentes por nombre y sabe intuitivamente qué productos se venden bien. Sin embargo, su negocio ha crecido hasta manejar más de 3.200 SKUs y atender a casi 1.000 clientes diferentes en un semestre, lo que hace imposible gestionar todo por intuición.
+Carlos fundó Droguería Demo hace 22 años. Conoce a la mayoría de sus clientes frecuentes por nombre y sabe intuitivamente qué productos se venden bien. Sin embargo, su negocio ha crecido hasta manejar más de 3.200 SKUs y atender a casi 1.000 clientes diferentes en un semestre, lo que hace imposible gestionar todo por intuición.
 
 Trabaja entre 10 y 12 horas diarias y no tiene tiempo para analizar hojas de cálculo. Toma decisiones en los pasillos, en el mostrador, o mientras revisa el inventario. Necesita información que llegue a él, no que él tenga que ir a buscarla.
 

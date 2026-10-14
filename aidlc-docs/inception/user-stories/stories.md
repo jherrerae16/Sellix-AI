@@ -502,7 +502,7 @@ Entonces el sistema bloquea el intento y muestra: "Demasiados intentos. Espere u
 **Criterios de aceptación** (Gherkin — historia crítica del pipeline):
 
 ```gherkin
-Dado que los archivos Ventas_Superofertas.xlsx y Remisiones_Mayo_Octubre_Superofertas.xlsx están en data/raw/
+Dado que los archivos Ventas.xlsx y Remisiones.xlsx están en data/raw/
 Cuando Andrés ejecuta "python scripts/etl.py" desde la terminal
 Entonces el script muestra el reporte de calidad de datos al inicio:
   | Campo                              | Valor esperado       |

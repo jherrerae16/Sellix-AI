@@ -92,8 +92,8 @@ Desarrollador (Andrés)
     │
     └── python scripts/etl.py
             │
-            ├── data/raw/Ventas_Superofertas.xlsx
-            ├── data/raw/Remisiones_Mayo_Octubre_Superofertas.xlsx
+            ├── data/raw/Ventas.xlsx
+            ├── data/raw/Remisiones.xlsx
             │
             ├── resumen_calidad_datos() → Imprime reporte · Bloquea si error crítico
             │

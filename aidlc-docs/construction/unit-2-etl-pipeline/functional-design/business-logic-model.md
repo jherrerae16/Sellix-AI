@@ -4,8 +4,8 @@
 
 | Archivo | Filas | Columnas clave |
 |---|---|---|
-| `data/raw/Ventas_Superofertas.xlsx` | ~17.721 | Consecutivo Movimiento, Identificación, Nombre, Teléfono, Fecha, Artículo, Nombre Artículo, Cantidad, Valor Venta Neta, Lista Precio Cliente, Lista Precio Factura, Categoría Terapéutica |
-| `data/raw/Remisiones_Mayo_Octubre_Superofertas.xlsx` | ~2.582 | Remision, Identificación, Nombre, Teléfono, Fecha, Artículo, Nombre Artículo, Cantidad, Valor Venta Neta |
+| `data/raw/Ventas.xlsx` | ~17.721 | Consecutivo Movimiento, Identificación, Nombre, Teléfono, Fecha, Artículo, Nombre Artículo, Cantidad, Valor Venta Neta, Lista Precio Cliente, Lista Precio Factura, Categoría Terapéutica |
+| `data/raw/Remisiones.xlsx` | ~2.582 | Remision, Identificación, Nombre, Teléfono, Fecha, Artículo, Nombre Artículo, Cantidad, Valor Venta Neta |
 
 **Fecha de referencia fija**: `2025-10-31` (reproducibilidad — NFR-003)
 

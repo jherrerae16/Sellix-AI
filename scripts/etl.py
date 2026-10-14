@@ -30,8 +30,8 @@ ROOT_DIR = Path(__file__).parent.parent
 DATA_RAW_DIR = ROOT_DIR / "data" / "raw"
 OUTPUT_DIR = ROOT_DIR / "public" / "data"
 
-VENTAS_FILE = DATA_RAW_DIR / "Ventas_Superofertas.xlsx"
-REMISIONES_FILE = DATA_RAW_DIR / "Remisiones_Mayo_Octubre_Superofertas.xlsx"
+VENTAS_FILE = DATA_RAW_DIR / "Ventas.xlsx"
+REMISIONES_FILE = DATA_RAW_DIR / "Remisiones.xlsx"
 
 REF_DATE = datetime(2025, 10, 31)  # Fija para reproducibilidad (BR-ETL-02)
 ANONIMO_ID = "222222222222"         # Consumidor final (BR-ETL-01)

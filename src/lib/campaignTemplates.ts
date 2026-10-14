@@ -6,6 +6,7 @@
 // =============================================================
 
 import type { CampaignTemplate } from "./types";
+import { NOMBRE_NEGOCIO } from "./negocio";
 
 export const CAMPAIGN_TEMPLATES: CampaignTemplate[] = [
   // ── Reposición ──────────────────────────────────────────────
@@ -23,7 +24,7 @@ Según su historial de compras, usted adquiere este producto aproximadamente cad
 No espere a quedarse sin su medicamento. Pase por nuestra droguería o contáctenos y se lo tenemos listo.
 
 Con gusto le atendemos,
-Droguería Super Ofertas
+${NOMBRE_NEGOCIO}
 Su salud, nuestra prioridad`,
   },
   {
@@ -40,7 +41,7 @@ Sabemos lo importante que es para su salud mantener la continuidad de su tratami
 Si desea, podemos tenerle su producto reservado para cuando pueda pasar a recogerlo. Solo responda este mensaje o llámenos.
 
 Estamos para servirle,
-Droguería Super Ofertas
+${NOMBRE_NEGOCIO}
 Su salud, nuestra prioridad`,
   },
 
@@ -49,15 +50,15 @@ Su salud, nuestra prioridad`,
     id: "churn-reactivacion",
     name: "Reactivación de cliente",
     type: "churn",
-    subject: "{{nombre}}, lo extrañamos en Droguería Super Ofertas",
+    subject: `{{nombre}}, lo extrañamos en ${NOMBRE_NEGOCIO}`,
     body: `Cordial saludo {{nombre}},
 
-Hace {{dias_sin_comprar}} días que no nos visita y queremos saber cómo está. En Droguería Super Ofertas siempre tenemos los mejores precios y la atención personalizada que usted merece.
+Hace {{dias_sin_comprar}} días que no nos visita y queremos saber cómo está. En ${NOMBRE_NEGOCIO} siempre tenemos los mejores precios y la atención personalizada que usted merece.
 
 Le recordamos que contamos con servicio a domicilio para su comodidad. Si necesita algún medicamento o producto de salud, estamos a una llamada de distancia.
 
 Lo esperamos con gusto,
-Droguería Super Ofertas
+${NOMBRE_NEGOCIO}
 Su salud, nuestra prioridad`,
   },
   {
@@ -74,7 +75,7 @@ Sabemos que han pasado {{dias_sin_comprar}} días desde su última compra y quer
 Pase por la droguería o escríbanos por WhatsApp. Será un gusto atenderle de nuevo.
 
 Un abrazo,
-Droguería Super Ofertas
+${NOMBRE_NEGOCIO}
 Su salud, nuestra prioridad`,
   },
 ];

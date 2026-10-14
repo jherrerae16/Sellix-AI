@@ -25,7 +25,7 @@ Sellix AI es una plataforma SaaS que convierte conversaciones de WhatsApp en ven
 
 A diferencia de los CRM tradicionales que dependen de captura manual, Sellix AI extrae inteligencia directamente de las conversaciones y de los datos POS para automatizar ventas, mover leads por el embudo y generar recomendaciones predictivas.
 
-**Cliente piloto:** Droguería Super Ofertas — Barranquilla, Colombia
+**Cliente piloto:** una droguería de Barranquilla, Colombia
 **Modelo de escala:** SaaS multi-tenant para comercios independientes en LATAM
 **Idiomas:** Español colombiano (100%) — extensible a otros mercados LATAM
 
@@ -306,7 +306,7 @@ Implementado con Gemini function calling sobre los datos del dashboard.
 **Responde automáticamente** a clientes en modo "auto":
 
 Capacidades:
-- Saluda y se presenta como Droguería Super Ofertas
+- Saluda y se presenta como Droguería Demo
 - Busca productos en catálogo con precios reales
 - Explica presentaciones disponibles (caja x30, x100, blister, etc.)
 - Sugiere venta cruzada al confirmar producto
@@ -563,6 +563,6 @@ COMMISSION_RATE=0.05
 ---
 
 *Documento preparado por Next AI Tech LLC · Miami, Florida*
-*Cliente piloto: Droguería Super Ofertas · Barranquilla, Colombia*
+*Cliente piloto: una droguería de Barranquilla, Colombia*
 *Sellix AI v3.0 · Abril 2026*
 *Producción: https://sellix-ai.com*

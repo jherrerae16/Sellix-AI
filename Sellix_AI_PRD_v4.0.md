@@ -32,7 +32,7 @@ El v3.0 es un producto sólido y funcional, pero su especificidad no está en la
 | 7 | Prompt de clasificación explícitamente farmacéutico | Media | `classification/process/route.ts:159` — *"Clasifica estos productos farmacéuticos colombianos"* |
 | 8 | Análisis de recetas médicas con Vision como módulo core | Media | `prescriptionAnalyzer.ts` |
 | 9 | Competencia hardcodeada (Cruz Verde, Farmatodo, La Rebaja, Olímpica) | Baja | Cotizador |
-| 10 | Prompt del Vendedor IA con identidad fija "Droguería Super Ofertas" | Baja | `salesAgent.ts` |
+| 10 | Prompt del Vendedor IA con identidad fija "Droguería Demo" | Baja | `salesAgent.ts` |
 
 > **Nota respecto al borrador anterior de este PRD:** el punto 4 (ticket por defecto) no estaba documentado y es de severidad crítica — un pet shop con ticket promedio de $35.000 vería proyecciones infladas ~2.4× si el fallback farmacéutico se activa.
 
@@ -84,7 +84,7 @@ Sellix AI es un **agente comercial autónomo** que se conecta al historial de ve
 
 **Qué se rehace:** la capa de ontología, la calibración de parámetros y el onboarding. **La persistencia ya está rehecha** (Postgres multi-tenant) — falta cerrarla con RLS.
 
-**Cliente de referencia:** Droguería Super Ofertas (Barranquilla) — pasa de "cliente piloto" a **caso de validación del Pack 001**. Existe hoy como tenant `superofertas`.
+**Cliente de referencia:** la droguería piloto (Barranquilla) — pasa de "cliente piloto" a **caso de validación del Pack 001**. Existe hoy como tenant `demo`.
 
 ---
 
@@ -321,7 +321,7 @@ Módulo: `/inbox` + webhook WhatsApp. **Sin cambios estructurales respecto a v3*
 
 | Elemento | v3.0 | v4.0 |
 |---|---|---|
-| Identidad | "Droguería Super Ofertas" hardcoded | Perfil de negocio por tenant (nombre, tono, horarios, políticas, zona de domicilio) |
+| Identidad | "Droguería Demo" hardcoded | Perfil de negocio por tenant (nombre, tono, horarios, políticas, zona de domicilio) |
 | Restricciones de dominio | Reglas farmacéuticas | `restricciones_tono` del pack + reglas propias del tenant |
 | Comparación de precios | 4 farmacias fijas | `competidores_referencia` del pack + competidores propios del tenant |
 | Venta cruzada en chat | Pares de lift sobre catálogo farma | Idéntico motor, ontología del pack |
@@ -585,7 +585,7 @@ El producto está en producción. La migración es incremental y no debe romper 
 | 1 | Modelar esquema Postgres con `tenant_id` | ✅ `001_initial_schema.sql`, 16 tablas |
 | 2 | Migrar los datasets JSON a tablas manteniendo la API de `dataService` | ✅ `dataServiceDb.ts` |
 | 3 | Migrar el CRM de Redis a Postgres | ✅ `conversations`, `chat_messages`, `orders` |
-| 4 | Crear el tenant `superofertas` y cargar sus datos | ✅ `seed-from-existing.mjs` |
+| 4 | Crear el tenant `demo` y cargar sus datos | ✅ `seed-from-existing.mjs` |
 | 5 | **RLS por `tenant_id`** (excepto tablas globales) | ✅ `006_rls.sql`, 17 políticas |
 | 6 | **`tenant_id` y `rol` en el claim JWT** | ✅ Tabla `users` + `005_users.sql` |
 | 7 | **Auditoría de queries** antes de activar RLS | ✅ 45 queries envueltas en `withTenant`/`withBypassRls` |
@@ -757,7 +757,7 @@ Todo el trabajo de v3.0 se conserva como configuración, no como código:
 | Competidores (Cruz Verde, Farmatodo, La Rebaja, Olímpica) | `competidores_referencia` del Pack 001 |
 | Tipos `churn_tratamiento` / `churn_cronico` | `abandono_afinidad` / `abandono_ancla` + `items_ancla` |
 | Los 11 fixes del code review v3 | Migran al Core sin cambios |
-| Droguería Super Ofertas | Tenant `superofertas` — referencia y caso de validación del pack |
+| Droguería Demo | Tenant `demo` — referencia y caso de validación del pack |
 
 **Ninguna capacidad del v3.0 se pierde.** Cada una se convierte en la demostración de que un vertical puede expresarse íntegramente como configuración sobre el Core.
 

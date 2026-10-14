@@ -10,7 +10,7 @@
 //   node scripts/seed-admin.mjs
 //     → toma APP_USER / APP_PASSWORD de .env.local
 //
-//   node scripts/seed-admin.mjs --user juan --rol owner --tenant superofertas
+//   node scripts/seed-admin.mjs --user juan --rol owner --tenant demo
 //     → crea un usuario concreto; pide la contraseña por stdin sin eco
 //
 // Ejecutar ANTES de desplegar el cambio de autenticación, para que el
@@ -63,7 +63,7 @@ async function main() {
     process.exit(1);
   }
 
-  const tenantId = arg("tenant", DEFAULT_TENANT_ID ?? "superofertas");
+  const tenantId = arg("tenant", DEFAULT_TENANT_ID ?? "demo");
   const username = arg("user", APP_USER);
   const rol = arg("rol", "admin");
 

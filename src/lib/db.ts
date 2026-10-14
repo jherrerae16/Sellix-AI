@@ -46,7 +46,7 @@ export const hasDatabase = !!connectionString;
  * mantenimiento. El código de aplicación debe tomarlo de la sesión
  * (ver src/lib/tenantContext.ts).
  */
-export const DEFAULT_TENANT_ID = process.env.DEFAULT_TENANT_ID ?? "superofertas";
+export const DEFAULT_TENANT_ID = process.env.DEFAULT_TENANT_ID ?? "demo";
 
 /**
  * Ejecuta queries dentro de una transacción que declara su tenant, de

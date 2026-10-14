@@ -10,7 +10,7 @@
 --   clasificador_prompt← src/app/api/classification/process/route.ts:159
 --
 -- CRITERIO DE SALIDA DE LA FASE B: con el Pack 001 cargado, el tenant
--- `superofertas` debe producir resultados idénticos a los actuales.
+-- `demo` debe producir resultados idénticos a los actuales.
 -- Si no los produce, la abstracción está mal — no se avanza.
 --
 -- Pack 000 (Genérico) usa priors conservadores: ante la falta de
@@ -91,7 +91,7 @@ ON CONFLICT (id) DO UPDATE SET
 
 -- ── Pack 001 — Farmacia / Droguería ──────────────────────────
 -- PRESERVACIÓN EXACTA DEL v3.0. No cambiar estos valores sin
--- validar contra el comportamiento en producción de `superofertas`.
+-- validar contra el comportamiento en producción de `demo`.
 INSERT INTO vertical_packs (
   id, nombre, version, tier_prior, ontologia, clasificador_prompt,
   recompra, churn, conversion_prior, ticket_referencia, scoring,
@@ -239,7 +239,7 @@ ON CONFLICT (id) DO UPDATE SET
   captura_visual = EXCLUDED.captura_visual, agente = EXCLUDED.agente, labels = EXCLUDED.labels;
 
 -- ── Asignación del tenant existente ──────────────────────────
--- Droguería Super Ofertas queda en el Pack 001 (comportamiento actual).
+-- Droguería Demo queda en el Pack 001 (comportamiento actual).
 UPDATE tenants SET pack_id = '001' WHERE pack_id IS NULL OR pack_id = '';
 
 -- La FK se añade aquí y no en 002 porque requiere que los packs ya

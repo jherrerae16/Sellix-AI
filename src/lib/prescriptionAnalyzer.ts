@@ -7,6 +7,7 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { readFile } from "fs/promises";
 import { join } from "path";
+import { NOMBRE_NEGOCIO } from "./negocio";
 
 interface DetectedProduct {
   nombre_receta: string;       // What was written on the prescription
@@ -229,7 +230,7 @@ No inventes medicamentos que no puedas leer claramente.`,
       }
     }
 
-    mensaje += `\n¿Desea hacer el pedido? Responda *SÍ* y se lo preparamos.\n\nDroguería Super Ofertas 💊`;
+    mensaje += `\n¿Desea hacer el pedido? Responda *SÍ* y se lo preparamos.\n\n${NOMBRE_NEGOCIO} 💊`;
 
     return {
       success: true,

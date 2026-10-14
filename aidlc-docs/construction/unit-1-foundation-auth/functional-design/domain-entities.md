@@ -8,7 +8,7 @@ Representa la sesión autenticada de un usuario del dashboard.
 ```typescript
 interface UserSession {
   userId: string        // ID único del usuario (ej: "admin")
-  userName: string      // Nombre para mostrar en TopBar (ej: "Droguería Super Ofertas")
+  userName: string      // Nombre para mostrar en TopBar (ej: "Droguería Demo")
   expires: string       // ISO timestamp de expiración (8h desde login)
 }
 ```

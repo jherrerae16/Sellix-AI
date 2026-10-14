@@ -181,7 +181,7 @@ OPERATIONS PHASE
 
 ## 5. Criterios de Éxito
 
-- [ ] ETL genera los 8 JSON sin errores con los datos de Super Ofertas
+- [ ] ETL genera los 8 JSON sin errores con los datos de la droguería piloto
 - [ ] Dashboard carga en < 3 segundos en Vercel
 - [ ] Churn identifica correctamente clientes ausentes vs. activos
 - [ ] Venta cruzada genera ≥20 pares con Lift > 1.5

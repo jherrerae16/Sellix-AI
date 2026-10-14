@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import type { PromotionMatch, ProductPrice, CampaignResult } from "@/lib/types";
 import { formatCOP } from "@/lib/formatters";
+import { NOMBRE_NEGOCIO } from "@/lib/negocio";
 
 interface Props {
   isOpen: boolean;
@@ -190,7 +191,7 @@ Tenemos una oferta especial para ti en *${selectedProduct.nombre}*
 
 Responde SÍ si quieres que te lo separemos 🛒
 
-Droguería Super Ofertas 💊`;
+${NOMBRE_NEGOCIO} 💊`;
     setMessage(tpl);
     setStep("mensaje");
   };

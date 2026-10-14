@@ -22,7 +22,7 @@ C) Otro (describe después del tag [Answer]:)
 
 ## Pregunta 2 — Archivos Excel de datos
 
-El ETL (`scripts/etl.py`) requiere los archivos `Ventas_Superofertas.xlsx` y `Remisiones_Mayo_Octubre_Superofertas.xlsx` en `data/raw/`. ¿Cuál es su estado actual?
+El ETL (`scripts/etl.py`) requiere los archivos `Ventas.xlsx` y `Remisiones.xlsx` en `data/raw/`. ¿Cuál es su estado actual?
 
 A) Los archivos Excel ya están disponibles y los pondré en `data/raw/` antes de ejecutar el ETL
 B) No tengo los archivos aún — necesito que el ETL funcione con datos de muestra/dummy para desarrollo y pruebas

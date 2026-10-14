@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import type { ProductPrice, CampaignResult } from "@/lib/types";
 import { formatCOP } from "@/lib/formatters";
+import { NOMBRE_NEGOCIO } from "@/lib/negocio";
 
 function debounce(fn: (q: string) => void, ms: number) {
   let timer: ReturnType<typeof setTimeout>;
@@ -59,7 +60,7 @@ function PriceCard({ product, onSend }: { product: ProductPrice; onSend: (p: Pro
             <div className="flex items-center gap-2">
               <ShieldCheck className="w-5 h-5 text-brand-blue" />
               <div>
-                <p className="text-sm font-bold text-brand-blue">Droguería Super Ofertas</p>
+                <p className="text-sm font-bold text-brand-blue">{NOMBRE_NEGOCIO}</p>
                 <p className="text-xs text-blue-500">Precio real de venta</p>
               </div>
             </div>
@@ -160,7 +161,7 @@ ${product.competidores.map((c) => `• ${c.nombre}: ${formatCOP(c.precio)} (+${c
 
 Ahorra hasta *${formatCOP(product.ahorro_max)}* (${product.ahorro_max_pct}%) comprando con nosotros.
 
-Lo esperamos en Droguería Super Ofertas o responda este mensaje para hacer su pedido.
+Lo esperamos en ${NOMBRE_NEGOCIO} o responda este mensaje para hacer su pedido.
 
 Su salud, nuestra prioridad.`;
 
